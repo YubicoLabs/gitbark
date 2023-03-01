@@ -4,32 +4,44 @@ import re
 
 
 class Commit:
+    """Git commit class
+
+    This class serves as a wrapper for a Git commit object
+    """
     def __init__(self, hash) -> None:
+        """Init Commit with commit hash"""
         self.git = GitWrapper()
         self.hash = hash
     
     def __eq__(self, other) -> bool:
+        """Perform equality check on two commits based on their hashes"""
         return self.hash == other.hash
     
     def get_commit_object(self):
+        """Return the Git commit object in text"""
         return self.git.get_object(self.hash)
 
     def get_tree_object(self):
+        """Return the tree object referenced to by the commit"""
         tree_hash = self.git.rev_parse(self.hash + "^{tree}").rstrip()
         return self.git.get_object(tree_hash)
     
     def get_blob_object(self, path):
+        """Return a specific blob object referenced to by the commit"""
         return self.git.get_object(f"{self.hash}:{path}")
     
     def get_parents(self):
+        """Return the parents of a commit"""
         parent_hashes = self.git.rev_parse(f"{self.hash}^@").splitlines()
         return [Commit(parent_hash) for parent_hash in parent_hashes]
 
     def get_rules(self):
+        """Return the commit rules to a commit"""
         rules = self.get_blob_object("commit_rules.yaml")
         return yaml.safe_load(rules)
 
     def get_signature(self):
+        """Return the signature and commit object (with signature removed)"""
         commit_object = self.get_commit_object()
         signature = re.search('-----BEGIN PGP SIGNATURE-----\n(\s.*\n)*\s-----END PGP SIGNATURE-----', commit_object)
         if signature:
@@ -39,7 +51,8 @@ class Commit:
 
         return signature, commit_object
 
-    def get_allowed_public_keys(self, allowed_keys_regex):
+    def get_trusted_public_keys(self, allowed_keys_regex):
+        """Return the set of trusted public keys reference to by the commit"""
         pubkeys_tree = self.git.get_object(f"{self.hash}:.pubkeys")
         key_blob_fields = re.findall(allowed_keys_regex, pubkeys_tree, flags=re.M)
         pubkeys = []
@@ -50,25 +63,7 @@ class Commit:
         return pubkeys
     
     def get_files_modified(self, validator):
+        """Return the set of files changed between validator commit and current commit"""
         return self.git.get_file_diff(self.hash, validator.hash)
 
-        
-
-        
-
-# .pubkeys/*.pub
-
-
-# x = "100644 blob 12e7c9d6f606da3ca1dcbf17118f706a8a52ef75 elias.asc"
-
-# match = re.findall(".*.asc", x)
-# print(match)
-
-# commit1 = Commit("02b143c4edfedd188d5b61f9ec897478fc78a5dd")
-# print(commit1.get_blob_object("commit_rules.yaml"))
-
-# commit1 = Commit("885975515e5fc387acd50b18a2b8a69cc1709a00")
-# parents =  commit1.get_parents()
-# for parent in parents:
-#     print(parent.get_commit_object())
         

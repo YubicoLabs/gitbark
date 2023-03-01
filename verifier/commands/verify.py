@@ -6,22 +6,12 @@ from rules.branch_rules import validate_branch_rules, get_branch_rules
 from models.reference_update import ReferenceUpdate
 
 
-# Only perform verification on the working branch. For instance if you're commiting to
-# refs/head/main, verification will be done on that particular branch. If you're pulling from the remote, new changes from all branches
-# need to be validated. When pushing, only the working branch needs to be validated.
-
-# Steps:
-# 1. Read the trigger type: COMMIT, PUSH, PULL, CHECKOUT, MERGE
-# 2. If COMMIT
-# 2.1 Give the commit hash as input to verify
-# 2.2 If the commit is not valid, refuse changes
-# 2.3 Otherwise let them in
-# 3. PUSH (same as COMMIT)
-# 4. PULL (same as COMMIT)
-# 5. CHECKOUT (same as COMMIT)
-# 6. MERGE (same as COMMIT) 
-
 def verify(ref_update:ReferenceUpdate = None):
+    """ Verify Git repository
+
+    Note: This function takes ref_update as an optional parameter. This is to allow running the function from 
+    a reference-transaction hook and manually.
+    """
     
     # Verify branch_rules
     branch_rules_valid = verify_branch(ref_update, "branch_rules")
@@ -43,6 +33,11 @@ def verify(ref_update:ReferenceUpdate = None):
 
 
 def verify_branch(ref_update:ReferenceUpdate, branch_name, branch_rule=None):
+    """Verify branch against branch rules and commit rules
+    
+    Branch rules and commit rules are dependent, meaning that if branch rules fails,
+    commit rules will never run.
+    """
     passes_branch_rules = validate_branch_rules(ref_update, branch_name, branch_rule)
     if not passes_branch_rules:
         return False
@@ -50,14 +45,19 @@ def verify_branch(ref_update:ReferenceUpdate, branch_name, branch_rule=None):
     passes_commit_rules = validate_commit_rules(branch_name, branch_rule)
     if not passes_commit_rules:
         return False
-
     return True
 
 
-updates_str = sys.argv[1]
+# updates_str = ""
+# if len(sys.argv) > 1:
+#     updates_str = sys.argv[1]
 
-updates = updates_str.split(',')
+# updates = updates_str.split(',')
 
+# ref_update = None
+
+# if updates:
+#     ref_update = ReferenceUpdate(updates)
 
 
 if verify():

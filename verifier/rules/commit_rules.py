@@ -12,6 +12,7 @@ warnings.filterwarnings("ignore")
 
 
 def validate_commit_rules(branch_name, branch_rule):
+    """Validates commit rules on branch"""
 
     current_commit, bootstrap_commit = get_head_and_bootstrap(branch_name, branch_rule)
 
@@ -20,9 +21,22 @@ def validate_commit_rules(branch_name, branch_rule):
     valid_commits = {}
 
     def is_commit_valid(commit: Commit):
+        """Recursively validates a commit by using its parents as validators
+        
+        Note: The commit is considered valid if it passes the commit rules of all its validator 
+        ancestors. The validators are defined in the following way:
+            - If the parent of x itself is valid, the parent becomes a validator of x
+            - If the parent of x is not valid, x inherits all Validators that the parent has
+        """
+
+
+        # If commit rules are evaluated against branch_rules branch,
+        # the root commit is the bootstrap commit.
         if is_branch_rules_branch and len(commit.get_parents()) == 0:
             valid_commits[commit.hash] = True
             return True
+
+        # Bootstrap commit is explicitly trusted
         if not is_branch_rules_branch and commit.hash == bootstrap_commit.hash:
             valid_commits[commit.hash] = True
             return True
@@ -44,6 +58,7 @@ def validate_commit_rules(branch_name, branch_rule):
         return True
 
     def find_nearest_valid_ancestors(commit:Commit, valid_ancestors=[]):
+        """Return the nearest valid ancestors"""
         parents = commit.get_parents()
         for parent in parents:
             if parent.hash in valid_commits:
@@ -81,8 +96,6 @@ def validate_rules(commit:Commit, validator: Commit, valid_commits):
 
     return True
 
-
-
 def validate_rule(commit: Commit, validator:Commit, rule, valid_commits):
     rule_name = rule["rule"]
 
@@ -117,7 +130,7 @@ def validate_signatures(commit: Commit, validator: Commit,  rule):
     return False
 
 def generate_pgp_keys(validator: Commit, rule):
-    allowed_public_keys = validator.get_allowed_public_keys(rule["allowed_keys"])
+    allowed_public_keys = validator.get_trusted_public_keys(rule["allowed_keys"])
     keys = []
     for allowed_public_key in allowed_public_keys:
         key = pgpy.PGPKey()
