@@ -12,11 +12,25 @@ class Commit:
         """Init Commit with commit hash"""
         self.git = GitWrapper()
         self.hash = hash
+        self.parents = None
+        self.violations = []
+        self.any_violations = {}
     
     def __eq__(self, other) -> bool:
         """Perform equality check on two commits based on their hashes"""
         return self.hash == other.hash
     
+    def add_rule_violation(self, violation, any_clause_name):
+        if any_clause_name:
+            self.add_any_rule_violation(violation, any_clause_name)
+        else:
+            self.violations.append(violation)
+    
+    def add_any_rule_violation(self, violation, any_rule_name):
+        if not any_rule_name in self.any_violations:
+            self.any_violations[any_rule_name] = []
+        self.any_violations[any_rule_name].append(violation)
+
     def get_commit_object(self):
         """Return the Git commit object in text"""
         return self.git.get_object(self.hash)
@@ -33,7 +47,9 @@ class Commit:
     def get_parents(self):
         """Return the parents of a commit"""
         parent_hashes = self.git.rev_parse(f"{self.hash}^@").splitlines()
-        return [Commit(parent_hash) for parent_hash in parent_hashes]
+        parents = [Commit(parent_hash) for parent_hash in parent_hashes]
+        # self.parents = parents
+        return parents
 
     def get_rules(self):
         """Return the commit rules to a commit"""

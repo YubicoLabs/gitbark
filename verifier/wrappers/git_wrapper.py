@@ -11,14 +11,17 @@ class GitWrapper:
         return subprocess.check_output(["git", "rev-parse", args], text=True, cwd=self.wd)
     
     def get_ref(self, pattern, discard_ref_name=True):
-        return subprocess.check_output(["git", "show-ref", pattern, "--heads", "-s" if discard_ref_name else ""], text=True, cwd=self.wd)
+        return subprocess.check_output(["git", "show-ref", pattern, "-s" if discard_ref_name else ""], text=True, cwd=self.wd)
 
-    def get_heads(self):
-        return subprocess.check_output(["git", "show-ref", "--heads"], text=True, cwd=self.wd)
+    def get_refs(self):
+        return subprocess.check_output(["git", "show-ref"], text=True, cwd=self.wd)
 
     def get_file_diff(self, commit_hash_1, commit_hash_2):
         return subprocess.check_output(["git", "diff-tree", "--no-commit-id", "--name-only", commit_hash_1, commit_hash_2], text=True, cwd=self.wd)
 
-    def update_ref(self, ref, new_ref, old_ref):
-        return subprocess.run("git", "update-ref", ref, new_ref, old_ref)
+    def update_ref(self, ref, new_ref):
+        # TODO: Remove staged changes
+        subprocess.run(f"echo {new_ref} > .git/{ref}", cwd=self.wd, shell=True)
+
+
 

@@ -21,7 +21,11 @@ class ReferenceUpdate:
         old_ref, new_ref, ref_name = self.get_ref_update_params(params)
         self.old_ref = old_ref
         self.new_ref = new_ref
-        self.ref_name = ref_name
+        self.ref_name:str = ref_name
+
+    def __str__(self) -> str:
+        res = f"Reference update on {self.ref_name}: {self.old_ref} -> {self.new_ref}"
+        return res
 
     def get_ref_update_params(self, params):
         """Returns the reference update parameters"""
@@ -32,7 +36,10 @@ class ReferenceUpdate:
             old_ref, new_ref, ref_name = params.split()
         return old_ref, new_ref, ref_name
 
+    def is_on_local_branch(self):
+        return self.ref_name.startswith('refs/heads')
+
     def reset_update(self):
         """Resets the reference update"""
-        self.git.update_ref(self.ref_name, self.old_ref, self.new_ref)
+        self.git.update_ref(self.ref_name, self.old_ref)
 
