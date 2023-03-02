@@ -1,4 +1,4 @@
-from wrappers.git_wrapper import GitWrapper
+from .git_api import GitApi
 import yaml
 import re
 
@@ -10,7 +10,7 @@ class Commit:
     """
     def __init__(self, hash) -> None:
         """Init Commit with commit hash"""
-        self.git = GitWrapper()
+        self.git = GitApi()
         self.hash = hash
         self.parents = None
         self.violations = []

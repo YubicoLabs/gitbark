@@ -1,10 +1,10 @@
 
 import sys
 
-from rules.commit_rules import validate_commit_rules
-from rules.branch_rules import validate_branch_rules, get_branch_rules
-from models.reference_update import ReferenceUpdate
-from models.report import Report
+from ..rules.commit_rules import validate_commit_rules
+from ..rules.branch_rules import validate_branch_rules, get_branch_rules
+from ..reference_update import ReferenceUpdate
+from ..report import Report
 
 def verify(ref_update:ReferenceUpdate = None):
     """ Verify Git repository
@@ -17,8 +17,7 @@ def verify(ref_update:ReferenceUpdate = None):
     # Verify branch_rules
     branch_rules_valid = verify_branch(ref_update, "branch_rules", report=report)
     if not branch_rules_valid:
-        print("Branch rules is not valid")
-        return False
+        return
 
     # Extract branch_rules
     branch_rules = get_branch_rules()
@@ -81,9 +80,9 @@ def parse_input():
         return None 
 
 
-ref_update = parse_input()
+#ref_update = parse_input()
 
-verify(ref_update)
+#verify(ref_update)
 
 
 

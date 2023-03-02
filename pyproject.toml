@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "git-integrity-verifier"
+version = "0.1.0"
+description = ""
+authors = ["Elias Bonnici <elias.bonnici@yubico.com>"]
+readme = "README.md"
+packages=[{include = "gitgate"}]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+pgpy = "^0.6.0"
+pyyaml = "^6.0"
+click = "^8.1.3"
+
+[tool.poetry.scripts]
+gitgate = "gitgate._cli.__main__:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

@@ -1,6 +1,6 @@
 import subprocess
 
-class GitWrapper:
+class GitApi:
     def __init__(self) -> None:
         self.wd =  "/Users/ebonnici/Github/MasterProject/test-repo"
 

@@ -2,8 +2,8 @@
 import re
 import pgpy
 
-from models.commit import Commit
-from wrappers.git_wrapper import GitWrapper
+from gitgate.commit import Commit
+from gitgate.git_api import GitApi
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -70,7 +70,7 @@ def validate_commit_rules(branch_name, branch_rule):
     return passes_commit_rules, current_commit.violations
 
 def get_head_and_bootstrap(branch_name, branch_rule):
-    git = GitWrapper()
+    git = GitApi()
     current_head = git.rev_parse(branch_name).rstrip()
     current_commit = Commit(current_head)
     if branch_name != "branch_rules":

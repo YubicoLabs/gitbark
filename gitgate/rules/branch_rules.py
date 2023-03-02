@@ -1,7 +1,7 @@
 
-from models.commit import Commit
-from models.reference_update import ReferenceUpdate
-from wrappers.git_wrapper import GitWrapper
+from gitgate.commit import Commit
+from gitgate.reference_update import ReferenceUpdate
+from gitgate.git_api import GitApi
 
 import re
 import yaml
@@ -60,7 +60,7 @@ def is_descendant(current: Commit, old: Commit):
 def get_branch_rules():
     """Returns the latest branch_rules"""
     
-    git = GitWrapper()
+    git = GitApi()
     branch_rules_head = git.rev_parse("branch_rules").rstrip()
     branch_rules_commit = Commit(branch_rules_head)
 

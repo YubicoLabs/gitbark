@@ -1,4 +1,4 @@
-from wrappers.git_wrapper import GitWrapper
+from .git_api import GitApi
 
 class ReferenceUpdate:
     """Git reference update class
@@ -17,7 +17,7 @@ class ReferenceUpdate:
         ref_name: str
             the name of the ref that is to be updated
         """
-        self.git = GitWrapper()
+        self.git = GitApi()
         old_ref, new_ref, ref_name = self.get_ref_update_params(params)
         self.old_ref = old_ref
         self.new_ref = new_ref

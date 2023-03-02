@@ -1,4 +1,4 @@
-from models.reference_update import ReferenceUpdate
+from .reference_update import ReferenceUpdate
 
 class BranchReport:
 
