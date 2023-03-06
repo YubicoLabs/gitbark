@@ -1,4 +1,5 @@
 import subprocess
+import re
 
 class GitApi:
     def __init__(self) -> None:
@@ -15,6 +16,13 @@ class GitApi:
 
     def get_refs(self):
         return subprocess.check_output(["git", "show-ref"], text=True, cwd=self.wd)
+    
+    def for_each_ref(self, hash_only=True):
+        if hash_only:
+            return subprocess.check_output(["git", "for-each-ref", "--format=%(objectname)", "refs/remotes/"], text=True, cwd=self.wd)
+
+    def get_remote_refs(self):
+        return self.for_each_ref()
 
     def get_file_diff(self, commit_hash_1, commit_hash_2):
         return subprocess.check_output(["git", "diff-tree", "--no-commit-id", "--name-only", commit_hash_1, commit_hash_2], text=True, cwd=self.wd)
@@ -22,6 +30,10 @@ class GitApi:
     def update_ref(self, ref, new_ref):
         # TODO: Remove staged changes
         subprocess.run(f"echo {new_ref} > .git/{ref}", cwd=self.wd, shell=True)
+
+    def restore_files(self):
+        subprocess.run("git restore --staged .", cwd=self.wd, shell=True)
+        subprocess.run("git restore .", cwd=self.wd, shell=True)
 
 
 

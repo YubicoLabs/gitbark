@@ -2,20 +2,20 @@
 import re
 import pgpy
 
-from gitgate.commit import Commit
-from gitgate.git_api import GitApi
+from gitbark.commit import Commit
+from gitbark.git_api import GitApi
+from gitbark.cache import Cache, CacheEntry
+from gitbark.reference_update import ReferenceUpdate
 
 import warnings
 warnings.filterwarnings("ignore")
 
 
-def validate_commit_rules(branch_name, branch_rule):
+def validate_commit_rules(ref_update:ReferenceUpdate, branch_name, branch_rule, cache:Cache):
     """Validates commit rules on branch"""
-
-    current_commit, bootstrap_commit = get_head_and_bootstrap(branch_name, branch_rule)
-
+    current_commit, bootstrap_commit = get_head_and_bootstrap(ref_update, branch_name, branch_rule)
     is_branch_rules_branch = True if branch_name == "branch_rules" else False
-
+    
     valid_commits = {}
 
     def is_commit_valid(commit: Commit):
@@ -25,20 +25,21 @@ def validate_commit_rules(branch_name, branch_rule):
         ancestors. The validators are defined in the following way:
             - If the parent of x itself is valid, the parent becomes a validator of x
             - If the parent of x is not valid, x inherits all Validators that the parent has
-        """ 
-
+        """
+        if cache.has(commit.hash):
+            value = cache.get(commit.hash)
+            if value.valid:
+                return True
+            else:
+                commit.violations = value.violations
+                return False
+            
         # Bootstrap commit is explicitly trusted
         if not is_branch_rules_branch and commit.hash == bootstrap_commit.hash:
-            valid_commits[commit.hash] = True
+            cache.set(commit.hash, CacheEntry(True, commit.violations))
             return True
    
         parents = commit.get_parents()
-
-        # If commit rules are evaluated against branch_rules branch,
-        # the root commit is the bootstrap commit.
-        if is_branch_rules_branch and len(parents) == 0:
-            valid_commits[commit.hash] = True
-            return True
         
         validators = []
         for parent in parents:
@@ -48,18 +49,19 @@ def validate_commit_rules(branch_name, branch_rule):
                 nearest_valid_ancestors = find_nearest_valid_ancestors(parent)
                 validators.extend(nearest_valid_ancestors)
 
-        
         for validator in validators:
             if not validate_rules(commit, validator, valid_commits):
+                cache.set(commit.hash, CacheEntry(False, commit.violations))
                 return False
-        valid_commits[commit.hash] = True
+            
+        cache.set(commit.hash, CacheEntry(True, commit.violations))
         return True
 
     def find_nearest_valid_ancestors(commit:Commit, valid_ancestors=[]):
         """Return the nearest valid ancestors"""
         parents = commit.get_parents()
         for parent in parents:
-            if parent.hash in valid_commits:
+            if is_commit_valid(parent):
                 valid_ancestors.append(parent)
             else:
                 nearest_valid_ancestors = find_nearest_valid_ancestors(parent, valid_ancestors)
@@ -69,15 +71,25 @@ def validate_commit_rules(branch_name, branch_rule):
     passes_commit_rules = is_commit_valid(current_commit)
     return passes_commit_rules, current_commit.violations
 
-def get_head_and_bootstrap(branch_name, branch_rule):
+def get_head_and_bootstrap(ref_update: ReferenceUpdate, branch_name, branch_rule):
     git = GitApi()
-    current_head = git.rev_parse(branch_name).rstrip()
+    current_head = ""
+    if ref_update and ref_update.ref_name == branch_name:
+        current_head = ref_update.new_ref
+    else:
+        current_head = git.rev_parse(branch_name).rstrip()
     current_commit = Commit(current_head)
     if branch_name != "branch_rules":
         boostrap_hash = branch_rule["validate_from"]
         boostrap_commit = Commit(boostrap_hash)
         return current_commit, boostrap_commit
-    return current_commit, None
+    elif branch_name == "branch_rules":
+        with open("/Users/ebonnici/Github/MasterProject/test-repo/.git/.gitbark/root_commit", 'r') as f:
+            boostrap_hash = f.read()
+            bootstrap_commit = Commit(boostrap_hash)
+            return current_commit, bootstrap_commit
+    else:
+        return current_commit, None
 
 def validate_rules(commit:Commit, validator: Commit, valid_commits):
     rules = validator.get_rules()

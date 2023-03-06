@@ -47,8 +47,6 @@ class Report:
                 branch_report.print_commit_rule_violations()
                 branch_report.print_reference_reset()
                 print()
-        else:
-            print("Incoming change is valid")
 
 
 

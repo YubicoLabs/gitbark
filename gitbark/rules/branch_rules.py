@@ -1,7 +1,7 @@
 
-from gitgate.commit import Commit
-from gitgate.reference_update import ReferenceUpdate
-from gitgate.git_api import GitApi
+from gitbark.commit import Commit
+from gitbark.reference_update import ReferenceUpdate
+from gitbark.git_api import GitApi
 
 import re
 import yaml
@@ -19,6 +19,7 @@ def validate_branch_rules(ref_update:ReferenceUpdate, branch_name, branch_rule):
     violations = []
 
     if not ref_update:
+        # Not evaluating branch rules if no ref_update
         return True, violations
 
     if not re.search(f"refs/.*/{exact_branch_name}", ref_update.ref_name, re.M):
