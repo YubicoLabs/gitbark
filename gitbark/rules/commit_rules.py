@@ -6,6 +6,8 @@ from gitbark.commit import Commit
 from gitbark.git_api import GitApi
 from gitbark.cache import Cache, CacheEntry
 from gitbark.reference_update import ReferenceUpdate
+from gitbark.navigation import Navigation
+from gitbark.report import Violation    
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -15,8 +17,6 @@ def validate_commit_rules(ref_update:ReferenceUpdate, branch_name, branch_rule, 
     """Validates commit rules on branch"""
     current_commit, bootstrap_commit = get_head_and_bootstrap(ref_update, branch_name, branch_rule)
     is_branch_rules_branch = True if branch_name == "branch_rules" else False
-    
-    valid_commits = {}
 
     def is_commit_valid(commit: Commit):
         """Recursively validates a commit by using its parents as validators
@@ -50,7 +50,7 @@ def validate_commit_rules(ref_update:ReferenceUpdate, branch_name, branch_rule, 
                 validators.extend(nearest_valid_ancestors)
 
         for validator in validators:
-            if not validate_rules(commit, validator, valid_commits):
+            if not validate_rules(commit, validator, cache):
                 cache.set(commit.hash, CacheEntry(False, commit.violations))
                 return False
             
@@ -84,14 +84,16 @@ def get_head_and_bootstrap(ref_update: ReferenceUpdate, branch_name, branch_rule
         boostrap_commit = Commit(boostrap_hash)
         return current_commit, boostrap_commit
     elif branch_name == "branch_rules":
-        with open("/Users/ebonnici/Github/MasterProject/test-repo/.git/.gitbark/root_commit", 'r') as f:
+        navigation = Navigation()
+        navigation.get_root_path()
+        with open(f"{navigation.wd}/.git/gitbark_data/root_commit", 'r') as f:
             boostrap_hash = f.read()
             bootstrap_commit = Commit(boostrap_hash)
             return current_commit, bootstrap_commit
     else:
         return current_commit, None
 
-def validate_rules(commit:Commit, validator: Commit, valid_commits):
+def validate_rules(commit:Commit, validator: Commit, cache: Cache):
     rules = validator.get_rules()
     rules = rules["rules"]
 
@@ -106,16 +108,20 @@ def validate_rules(commit:Commit, validator: Commit, valid_commits):
             else:
                 rule_name = any_rule_index
                 any_rule_index += 1
-            if not any(validate_rule(commit, validator, sub_rule, valid_commits, rule_name) for sub_rule in sub_rules):
+            if not any(validate_rule(commit, validator, sub_rule, cache, rule_name) for sub_rule in sub_rules):
                 # If none of the "any" rules are followed, we must give a reason for why that is
                 passes_rules = False
+                name = ""
+                if not type(rule_name) == str:
+                    violation = Violation("Any clause", violations=commit.any_violations[rule_name])
+                    commit.add_rule_violation(violation, None)
         else:
-            if not validate_rule(commit, validator, rule, valid_commits):
+            if not validate_rule(commit, validator, rule, cache):
                 passes_rules = False
 
     return passes_rules
 
-def validate_rule(commit: Commit, validator:Commit, rule, valid_commits, any_clause_name=None):
+def validate_rule(commit: Commit, validator:Commit, rule, cache:Cache, any_clause_name=None):
     rule_name = rule["rule"]
 
     if rule_name == "require_signature":
@@ -123,7 +129,7 @@ def validate_rule(commit: Commit, validator:Commit, rule, valid_commits, any_cla
     if rule_name == "file_not_modified":
         return validate_file_modification(commit, validator, rule, any_clause_name)
     if rule_name == "disallow_invalid_parents":
-        return validate_invalid_parents(commit, rule, valid_commits, any_clause_name)
+        return validate_invalid_parents(commit, rule, cache, any_clause_name)
     if rule_name == "require_number_of_parents":
         return validate_number_of_parents(commit, rule, any_clause_name)
 
@@ -137,7 +143,8 @@ def validate_rule(commit: Commit, validator:Commit, rule, valid_commits, any_cla
 def validate_signatures(commit: Commit, validator: Commit,  rule, any_clause_name):
     signature, commit_object = commit.get_signature()
     if not signature:
-        commit.add_rule_violation(f"Commit {commit.hash} is not signed", any_clause_name)
+        violation = Violation("Require signature", "Commit is not signed")
+        commit.add_rule_violation(violation, any_clause_name)
         return False
     signature = pgpy.PGPSignature().from_blob(signature)
     allowed_pgpy_keys = generate_pgp_keys(validator, rule)
@@ -147,7 +154,8 @@ def validate_signatures(commit: Commit, validator: Commit,  rule, any_clause_nam
             return True
         except:
             continue
-    commit.add_rule_violation(f"Commit {commit.hash} was signed by untrusted key", any_clause_name)
+    violation = Violation("Require signature", "Commit was signed by untrusted key", any_clause_name)
+    commit.add_rule_violation(violation, any_clause_name)
     return False
 
 def generate_pgp_keys(validator: Commit, rule):
@@ -168,21 +176,37 @@ def validate_file_modification(commit: Commit, validator: Commit, rule, any_clau
     files_modified = commit.get_files_modified(validator)
     matches = re.search(file_pattern, files_modified, flags=re.M)
     if matches:
-        commit.add_rule_violation(f"Commit {commit.hash} modified a file matching the pattern {file_pattern}", any_clause_name)
+        violation = Violation("Sensitive file modified", f"Commit modified a file matching the pattern {file_pattern}")
+        commit.add_rule_violation(violation, any_clause_name)
         return False
     else:
         return True
 
 ##### PARENTS #######
-def validate_invalid_parents(commit: Commit, rule, valid_commits, any_clause_name):
+def validate_invalid_parents(commit: Commit, rule, cache: Cache, any_clause_name):
     parents = commit.get_parents()
     invalid_parents = []
     for parent in parents:
-        if not parent.hash in valid_commits:
+        if not cache.has(parent.hash):
             invalid_parents.append(parent)
+        else:
+            if not cache.get(parent.hash).valid:
+                invalid_parents.append(parent)
+
+   
     if len(invalid_parents) > 0:
-        # parents_violations = [parent.violations for parent in invalid_parents]
-        commit.add_rule_violation(f"Commit {commit.hash} has invalid parents", any_clause_name)
+        parents_hashes = [parent.hash for parent in invalid_parents]
+        if "exception" in rule:
+            commit_msg = commit.get_commit_message().strip()
+            for hash in parents_hashes:
+                if not hash in commit_msg:
+                    violation = Violation("Invalid parents", "Commit has invalid parents")
+                    commit.add_rule_violation(violation, any_clause_name)
+                    return False
+            return True
+        else:
+            violation = Violation("Invalid parents", "Commit has invalid parents")
+            commit.add_rule_violation(violation, any_clause_name)
         return False
     return True
 

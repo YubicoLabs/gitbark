@@ -18,20 +18,16 @@ class BranchReport:
         self.ref_update = ref_update
 
     def print_reference_reset(self):
-        if self.ref_update:
-            print(f"{self.ref_update} was rejected")
+        if self.ref_update and self.ref_update.exit_status:
+            print(f"\nRejected incoming change due to rule violations.")
 
     def print_commit_rule_violations(self) -> None:
-        if len(self.commit_rule_violations) > 0:
-            print("Commit rule violations:")
         for violation in self.commit_rule_violations:
-            print(violation)
+            print("  -", violation.name, ":", violation.reason)
     
     def print_branch_rule_violations(self) -> None:
-        if len(self.branch_rule_violations) > 0:
-            print("Branch rule violations:")
         for violation in self.branch_rule_violations:
-            print(violation)
+            print("  -", violation.name, ":", violation.reason)
 
 class Report:
 
@@ -41,13 +37,21 @@ class Report:
     def print_report(self) -> None:
         if self.output:
             for branch in self.output.keys():
-                print(f"Warning: {branch} is invalid")
                 branch_report = self.__get_branch(branch)
+                print()
+                if branch_report.ref_update:
+                    if branch_report.ref_update.is_on_local_branch():
+                        if branch_report.ref_update.from_remote():
+                            print(f"Error: Incoming change on {branch} with commit ID {branch_report.ref_update.new_ref} violates the following rules: ")
+                        else:
+                            print(f"Warning: Incoming change on {branch} with commit ID {branch_report.ref_update.new_ref} violates the following rules: ")
+                else:
+                    print(f"Warning: {branch} is invalid. The following rules are violated: ")
+
                 branch_report.print_branch_rule_violations()
                 branch_report.print_commit_rule_violations()
                 branch_report.print_reference_reset()
                 print()
-
 
 
     def __add_branch(self, branch) -> None:
@@ -77,6 +81,23 @@ class Report:
         
         branch_report = self.__get_branch(branch)
         branch_report.add_reference_reset(ref_update)
+
+
+
+class Violation:
+    def __init__(self, name, reason=None, violations=None) -> None:
+        self.name = name
+        self.reason = reason
+        if violations:
+            self.violations = violations
+            self.reason = self._generate_reason()
+        
+
+    def _generate_reason(self):
+        res = "All of the following rules were violated: "
+        res += " and ".join([violation.reason for violation in self.violations])
+        return res
+
     
     
 

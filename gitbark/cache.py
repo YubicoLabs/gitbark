@@ -1,9 +1,15 @@
 
+from .navigation import Navigation
+
 import os
 import pickle
 
 
-CACHE_FILE_PATH = "/Users/ebonnici/Github/MasterProject/test-repo/cache.pickle"
+navigation = Navigation()
+navigation.get_root_path() 
+
+CACHE_FILE_PATH = f"{navigation.wd}/.git/gitbark_data/cache.pickle"
+CACHE_FILE_PATH_PARENT = f"{navigation.wd}/.git/gitbark_data"
 
 
 class CacheEntry:
@@ -16,6 +22,9 @@ class CacheEntry:
 class Cache:
     def __init__(self) -> None:
         self.cache = {}
+        if not os.path.exists(CACHE_FILE_PATH_PARENT):
+            os.mkdir(CACHE_FILE_PATH_PARENT)
+            
         if os.path.exists(CACHE_FILE_PATH):
             with open(CACHE_FILE_PATH, 'rb') as f:
                 self.cache = pickle.load(f)

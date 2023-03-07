@@ -2,6 +2,7 @@
 from gitbark.commit import Commit
 from gitbark.reference_update import ReferenceUpdate
 from gitbark.git_api import GitApi
+from gitbark.report import Violation
 
 import re
 import yaml
@@ -31,7 +32,8 @@ def validate_branch_rules(ref_update:ReferenceUpdate, branch_name, branch_rule):
     if "allow_force_push" in branch_rule:
         passes_force_push = validate_force_push(ref_update, branch_rule["allow_force_push"])
         if not passes_force_push:
-            violations.append(f"Incomming commit {ref_update.new_ref} is not fast-forward")
+            violation = Violation("Non fast-forward", "Commit is not fast-forward")
+            violations.append(violation)
             return False, violations
 
     return True, violations
@@ -65,7 +67,7 @@ def get_branch_rules():
     branch_rules_head = git.rev_parse("branch_rules").rstrip()
     branch_rules_commit = Commit(branch_rules_head)
 
-    branch_rules = branch_rules_commit.get_blob_object("branch_rules.yaml")
+    branch_rules = branch_rules_commit.get_blob_object(".gitbark/branch_rules.yaml")
     branch_rules = yaml.safe_load(branch_rules)
     branch_rules = branch_rules["branches"]
 

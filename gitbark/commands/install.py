@@ -4,10 +4,10 @@ from ..commands.verify import verify_branch
 from ..git_api import GitApi
 from ..cache import Cache
 from ..report import Report
+from ..navigation import Navigation
 
 import os
 
-WD = "/Users/ebonnici/Github/MasterProject/test-repo"
 
 def install():
     git = GitApi()
@@ -29,10 +29,10 @@ def install():
         else:
             cache = Cache()
             report = Report()
+            write_root_hash(root)
             branch_rules_valid = verify_branch(None, "branch_rules", report, cache)
             if branch_rules_valid:
                 # print("Installed successfully")
-                write_root_hash(root)
                 return True
             else:
                 report.print_report()
@@ -42,7 +42,9 @@ def install():
 
 
 def write_root_hash(root:Commit):
-    gitbark_path = f"{WD}/.git/.gitbark"
+    navigation = Navigation()
+    navigation.get_root_path()
+    gitbark_path = f"{navigation.wd}/.git/gitbark_data"
     root_commit_path = f"{gitbark_path}/root_commit"
     if not os.path.exists(gitbark_path):
         os.mkdir(gitbark_path)
@@ -52,9 +54,11 @@ def write_root_hash(root:Commit):
 
 
 def is_installed(root: Commit):
-    root_path = f"{WD}/.git/.gitbark/root_commit"
-    if os.path.exists(root_path):
-        with open(root_path, 'r') as f:
+    navigation = Navigation()
+    navigation.get_root_path()
+    root_commit_path = f"{navigation.wd}/.git/gitbark_data/root_commit"
+    if os.path.exists(root_commit_path):
+        with open(root_commit_path, 'r') as f:
             root_hash = f.read()
             if root.hash == root_hash:
                 return True

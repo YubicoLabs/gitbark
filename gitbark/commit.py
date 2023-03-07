@@ -3,6 +3,8 @@ import yaml
 import re
 
 
+
+
 class Commit:
     """Git commit class
 
@@ -34,6 +36,9 @@ class Commit:
     def get_commit_object(self):
         """Return the Git commit object in text"""
         return self.git.get_object(self.hash)
+    
+    def get_commit_message(self):
+        return self.git.show(f"git show -s --format=%B {self.hash}")
 
     def get_tree_object(self):
         """Return the tree object referenced to by the commit"""
@@ -53,7 +58,7 @@ class Commit:
 
     def get_rules(self):
         """Return the commit rules to a commit"""
-        rules = self.get_blob_object("commit_rules.yaml")
+        rules = self.get_blob_object(".gitbark/commit_rules.yaml")
         return yaml.safe_load(rules)
 
     def get_signature(self):
@@ -69,8 +74,8 @@ class Commit:
 
     def get_trusted_public_keys(self, allowed_keys_regex):
         """Return the set of trusted public keys reference to by the commit"""
-        pubkeys_tree = self.git.get_object(f"{self.hash}:.pubkeys")
-        key_blob_fields = re.findall(allowed_keys_regex, pubkeys_tree, flags=re.M)
+        pubkeys_tree = self.git.get_object(f"{self.hash}:.gitbark/.pubkeys")
+        key_blob_fields = re.findall(f".*{allowed_keys_regex}", pubkeys_tree, flags=re.M)
         pubkeys = []
         for key_blob_field in key_blob_fields:
             key_blob_hash = key_blob_field.split()[2]
