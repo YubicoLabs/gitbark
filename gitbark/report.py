@@ -1,4 +1,4 @@
-from .reference_update import ReferenceUpdate
+from .git.reference_update import ReferenceUpdate
 
 class BranchReport:
 
@@ -23,11 +23,11 @@ class BranchReport:
 
     def print_commit_rule_violations(self) -> None:
         for violation in self.commit_rule_violations:
-            print("  -", violation.name, ":", violation.reason)
+            print("  -",  violation)
     
     def print_branch_rule_violations(self) -> None:
         for violation in self.branch_rule_violations:
-            print("  -", violation.name, ":", violation.reason)
+            print("  -", violation)
 
 class Report:
 
@@ -52,7 +52,8 @@ class Report:
                 branch_report.print_commit_rule_violations()
                 branch_report.print_reference_reset()
                 print()
-
+        else:
+            print("Repository is in a valid state")
 
     def __add_branch(self, branch) -> None:
         if not branch in self.output:
@@ -81,22 +82,6 @@ class Report:
         
         branch_report = self.__get_branch(branch)
         branch_report.add_reference_reset(ref_update)
-
-
-
-class Violation:
-    def __init__(self, name, reason=None, violations=None) -> None:
-        self.name = name
-        self.reason = reason
-        if violations:
-            self.violations = violations
-            self.reason = self._generate_reason()
-        
-
-    def _generate_reason(self):
-        res = "All of the following rules were violated: "
-        res += " and ".join([violation.reason for violation in self.violations])
-        return res
 
     
     

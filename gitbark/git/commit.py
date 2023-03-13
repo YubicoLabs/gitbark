@@ -1,9 +1,6 @@
-from .git_api import GitApi
+from .git import Git
 import yaml
 import re
-
-
-
 
 class Commit:
     """Git commit class
@@ -12,7 +9,7 @@ class Commit:
     """
     def __init__(self, hash) -> None:
         """Init Commit with commit hash"""
-        self.git = GitApi()
+        self.git = Git()
         self.hash = hash
         self.parents = None
         self.violations = []
@@ -22,17 +19,9 @@ class Commit:
         """Perform equality check on two commits based on their hashes"""
         return self.hash == other.hash
     
-    def add_rule_violation(self, violation, any_clause_name):
-        if any_clause_name:
-            self.add_any_rule_violation(violation, any_clause_name)
-        else:
-            self.violations.append(violation)
+    def add_rule_violation(self, violation):
+        self.violations.append(violation)
     
-    def add_any_rule_violation(self, violation, any_rule_name):
-        if not any_rule_name in self.any_violations:
-            self.any_violations[any_rule_name] = []
-        self.any_violations[any_rule_name].append(violation)
-
     def get_commit_object(self):
         """Return the Git commit object in text"""
         return self.git.get_object(self.hash)

@@ -1,9 +1,8 @@
-from .navigation import Navigation
+from ..navigation import Navigation
 
 import subprocess
-import re
 
-class GitApi:
+class Git:
     def __init__(self) -> None:
         self.navigation = Navigation()
         self.navigation.get_root_path()
@@ -20,15 +19,15 @@ class GitApi:
     def get_refs(self):
         return subprocess.check_output(["git", "show-ref"], text=True, cwd=self.navigation.wd)
     
-    def for_each_ref(self, hash_only=True):
+    def for_each_ref(self, pattern, hash_only=True):
         if hash_only:
-            return subprocess.check_output(["git", "for-each-ref", "--format=%(objectname)", "refs/remotes/"], text=True, cwd=self.navigation.wd)
+            return subprocess.check_output(["git", "for-each-ref", "--format=%(objectname)", pattern], text=True, cwd=self.navigation.wd)
     
     def show(self, args):
         return subprocess.check_output(args, text=True, cwd=self.navigation.wd, shell=True)
     
     def get_remote_refs(self):
-        return self.for_each_ref()
+        return self.for_each_ref(pattern="refs/remotes/")
 
     def get_file_diff(self, commit_hash_1, commit_hash_2):
         return subprocess.check_output(["git", "diff-tree", "--no-commit-id", "--name-only", commit_hash_1, commit_hash_2], text=True, cwd=self.navigation.wd)

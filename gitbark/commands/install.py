@@ -1,7 +1,7 @@
 
-from ..commit import Commit
+from ..git.commit import Commit
 from ..commands.verify import verify_branch
-from ..git_api import GitApi
+from ..git.git import Git
 from ..cache import Cache
 from ..report import Report
 from ..navigation import Navigation
@@ -10,7 +10,7 @@ import os
 
 
 def install():
-    git = GitApi()
+    git = Git()
     branch_rules_head = git.rev_parse("branch_rules").rstrip()
     branch_rules_commit = Commit(branch_rules_head)
     root  = get_root_commit(branch_rules_commit)

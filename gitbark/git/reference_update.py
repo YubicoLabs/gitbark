@@ -1,4 +1,4 @@
-from .git_api import GitApi
+from .git import Git
 from .commit import Commit
 
 class ReferenceUpdate:
@@ -19,7 +19,7 @@ class ReferenceUpdate:
             the name of the ref that is to be updated
         """
         # TODO: Add som error validation
-        self.git = GitApi()
+        self.git = Git()
         old_ref, new_ref, ref_name = self.get_ref_update_params(params)
         self.old_ref = old_ref
         self.new_ref = new_ref
@@ -68,7 +68,6 @@ class ReferenceUpdate:
             old_ref=params[0]
             new_ref=params[1]
             ref_name=params[2]
-            #old_ref, new_ref, ref_name = params.split()
         return old_ref, new_ref, ref_name
 
     def is_on_local_branch(self):
