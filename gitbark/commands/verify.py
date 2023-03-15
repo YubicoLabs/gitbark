@@ -8,6 +8,7 @@ from ..git.git import Git
 from ..report import Report
 from ..cache import Cache
 
+
 def verify(ref_update: ReferenceUpdate = None):
     """ Verify Git repository
 
@@ -32,6 +33,12 @@ def verify(ref_update: ReferenceUpdate = None):
 
     # Extract branch_rules
     branch_rules = get_branch_rules()
+
+    if ref_update:
+        relevant_refs = get_relevant_refs(branch_rules)
+        if not ref_update.ref_name in relevant_refs:
+            return
+
     
     # If reference_update, only check specific ref
     if ref_update:
@@ -101,6 +108,15 @@ def should_evaluate_branch_rules(ref_update: ReferenceUpdate, branch_name):
     if not ref_update.ref_name == branch_name:
         return False
     return True
+
+
+def get_relevant_refs(branch_rules):
+    relevant_refs = []
+    for rule in branch_rules:
+        branch_names = [entry[1] for entry in rule["branches"]]
+        relevant_refs.extend(branch_names)
+    return relevant_refs
+
 
 
 def parse_input():

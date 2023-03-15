@@ -5,11 +5,11 @@ import os
 import pickle
 
 
-navigation = Navigation()
-navigation.get_root_path() 
+# navigation = Navigation()
+# navigation.get_root_path() 
 
-CACHE_FILE_PATH = f"{navigation.wd}/.git/gitbark_data/cache.pickle"
-CACHE_FILE_PATH_PARENT = f"{navigation.wd}/.git/gitbark_data"
+# CACHE_FILE_PATH = f"{navigation.wd}/.git/gitbark_data/cache.pickle"
+# CACHE_FILE_PATH_PARENT = f"{navigation.wd}/.git/gitbark_data"
 
 
 class CacheEntry:
@@ -21,12 +21,17 @@ class CacheEntry:
 
 class Cache:
     def __init__(self) -> None:
+        navigation = Navigation()
+        navigation.get_root_path() 
+
+        self.CACHE_FILE_PATH = f"{navigation.wd}/.git/gitbark_data/cache.pickle"
+        self.CACHE_FILE_PATH_PARENT = f"{navigation.wd}/.git/gitbark_data"
         self.cache = {}
-        if not os.path.exists(CACHE_FILE_PATH_PARENT):
-            os.mkdir(CACHE_FILE_PATH_PARENT)
+        if not os.path.exists(self.CACHE_FILE_PATH_PARENT):
+            os.mkdir(self.CACHE_FILE_PATH_PARENT)
             
-        if os.path.exists(CACHE_FILE_PATH):
-            with open(CACHE_FILE_PATH, 'rb') as f:
+        if os.path.exists(self.CACHE_FILE_PATH):
+            with open(self.CACHE_FILE_PATH, 'rb') as f:
                 self.cache = pickle.load(f)
         
     
@@ -41,7 +46,7 @@ class Cache:
         self.cache[key] = value
     
     def dump(self):
-        with open(CACHE_FILE_PATH, 'wb') as f:
+        with open(self.CACHE_FILE_PATH, 'wb') as f:
             pickle.dump(self.cache, f)
 
 

@@ -19,9 +19,4 @@ class Navigation:
             #     sys.exit(1)
         except subprocess.CalledProcessError as e:
             print(e.output)
-        
-
-
-# x = Navigation()
-# x.get_root_path()  
-# print(x.wd)      
+            sys.exit(1)
