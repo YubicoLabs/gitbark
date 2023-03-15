@@ -15,19 +15,22 @@ def verify(ref_update: ReferenceUpdate = None):
     Note: This function takes ref_update as an optional parameter. This is to allow running the function from 
     a reference-transaction hook and manually.
     """
-
     if ref_update:
         ref_update = ReferenceUpdate(ref_update)
+        if ref_update.is_ref_deletion():
+            return
+        
 
     cache = Cache()
     report = Report()
-
 
     # Verify branch_rules
     branch_rules_valid = verify_branch(ref_update, "branch_rules", report=report, cache=cache)
     if not branch_rules_valid:
         # If branch_rules is invalid we wont be able to trustfully verify branches
         # Local branch_rules can never be invalid
+        cache.dump()
+        handle_exit(ref_update, report)
         return 
         
 
@@ -52,12 +55,14 @@ def verify(ref_update: ReferenceUpdate = None):
         for rule in branch_rules:
             for _,branch_name in rule["branches"]:
                 verify_branch(ref_update, branch_name, report=report, cache=cache, branch_rule=rule)
+        verify_branch(ref_update, "refs/remotes/origin/branch_rules", report, cache)
         
     cache.dump()
-    # Print integrity report
-    report.print_report()
+    handle_exit(ref_update, report)
 
-    # Abort reference transaction
+
+def handle_exit(ref_update: ReferenceUpdate, report:Report):
+    report.print_report()
     if ref_update:
         exit_status = ref_update.exit_status
         if exit_status == 1:

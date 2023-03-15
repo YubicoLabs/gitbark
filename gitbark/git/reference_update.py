@@ -79,3 +79,6 @@ class ReferenceUpdate:
             self.exit_status = 1
         else:
             self.exit_status = 2
+
+    def is_ref_deletion(self):
+        return "0"*40 == self.new_ref

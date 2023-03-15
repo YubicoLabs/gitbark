@@ -4,8 +4,9 @@ from gitbark.git.git import Git
 from gitbark.cache import Cache, CacheEntry
 from gitbark.git.reference_update import ReferenceUpdate
 from gitbark.navigation import Navigation
-from .import_rules import get_rules    
+from .import_rules import get_rules
 
+import re
 
 
 def validate_commit_rules(ref_update:ReferenceUpdate, branch_name, branch_rule, cache:Cache):
@@ -68,24 +69,27 @@ def is_commit_valid(commit: Commit, bootstrap_commit: Commit, cache: Cache):
 def get_head_and_bootstrap(ref_update: ReferenceUpdate, branch_name, branch_rule):
     git = Git()
     current_head = ""
-    if ref_update and ref_update.ref_name == branch_name:
+    
+    short_branch_name = branch_name.split("/")
+    short_branch_name = short_branch_name[-1]
+
+    if ref_update and re.search(f"refs/.*/{short_branch_name}", ref_update.ref_name, re.M):
         current_head = ref_update.new_ref
     else:
         current_head = git.rev_parse(branch_name).rstrip()
     current_commit = Commit(current_head)
-    if branch_name != "branch_rules":
+
+    if short_branch_name != "branch_rules":
         boostrap_hash = branch_rule["validate_from"]
         boostrap_commit = Commit(boostrap_hash)
         return current_commit, boostrap_commit
-    elif branch_name == "branch_rules":
+    else:
         navigation = Navigation()
         navigation.get_root_path()
         with open(f"{navigation.wd}/.git/gitbark_data/root_commit", 'r') as f:
             boostrap_hash = f.read()
             bootstrap_commit = Commit(boostrap_hash)
             return current_commit, bootstrap_commit
-    else:
-        return current_commit, None
 
 def validate_rules(commit:Commit, validator: Commit, cache: Cache):
     rules = get_rules(validator)

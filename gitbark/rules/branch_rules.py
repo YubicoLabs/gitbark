@@ -25,6 +25,9 @@ def validate_branch_rules(ref_update:ReferenceUpdate, branch_name, branch_rule):
     if not re.search(f"refs/.*/{exact_branch_name}", ref_update.ref_name, re.M):
         # Not evaluating branch rules if branch_name does not match the ref being updated
         return True, violations
+    
+    if not branch_rule:
+        branch_rule = get_default_branch_rule()
 
     # Checks if allow_force_push is included as a rule in branch_rules
     # TODO: allow_force_push should be renamed to fast-forward-only
@@ -38,7 +41,16 @@ def validate_branch_rules(ref_update:ReferenceUpdate, branch_name, branch_rule):
     return True, violations
 
 
+
+def get_default_branch_rule():
+    branch_rule = {
+        "allow_force_push": False
+    }
+    return branch_rule
+
 def validate_force_push(ref_update:ReferenceUpdate, allow_force_push):
+    if ref_update.old_ref == "0"*40:
+        return True
     if not allow_force_push:
         current = Commit(ref_update.new_ref)
         old = Commit(ref_update.old_ref)
@@ -76,6 +88,5 @@ def get_branch_rules():
         all_branches = git.get_refs()
         matching_branches = re.findall(f".*{pattern}", all_branches)
         rule["branches"] = [branch.split() for branch in matching_branches]
-    
     return branch_rules
 
