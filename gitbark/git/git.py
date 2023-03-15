@@ -11,7 +11,10 @@ class Git:
         return subprocess.check_output(["git", "cat-file", "-p", hash], text=True, cwd=self.navigation.wd)
 
     def rev_parse(self, args):
-        return subprocess.check_output(["git", "rev-parse", args], text=True, cwd=self.navigation.wd)
+        try:
+            return subprocess.check_output(["git", "rev-parse", args], text=True, cwd=self.navigation.wd, stderr=subprocess.STDOUT).rstrip()
+        except subprocess.CalledProcessError as cpe:
+            raise cpe
     
     def get_ref(self, pattern, discard_ref_name=True):
         return subprocess.check_output(["git", "show-ref", pattern, "-s" if discard_ref_name else ""], text=True, cwd=self.navigation.wd)
@@ -34,11 +37,21 @@ class Git:
 
     def update_ref(self, ref, new_ref):
         # TODO: Remove staged changes
-        subprocess.run(f"echo {new_ref} > .git/{ref}", cwd=self.navigation.wd, shell=True)
+        subprocess.run(f"git update-ref {ref} {new_ref}", cwd=self.navigation.wd, shell=True)
+
+    def push_ref(self, refspec):
+        subprocess.run(f"git push origin {refspec}", cwd=self.navigation.wd, shell=True)
 
     def restore_files(self):
         subprocess.run("git restore --staged .", cwd=self.navigation.wd, shell=True)
         subprocess.run("git restore .", cwd=self.navigation.wd, shell=True)
+
+    def fetch(self, args):
+        subprocess.run(f"git fetch {args}", cwd=self.navigation, shell=True)
+    
+    def symbolic_ref(self, ref):
+        return subprocess.check_output(["git", "symbolic-ref", "--short", ref], text=True, cwd=self.navigation.wd).rstrip()
+
 
 
 

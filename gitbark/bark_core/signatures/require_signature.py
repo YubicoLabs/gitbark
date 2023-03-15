@@ -4,7 +4,8 @@ from gitbark.rules.rule import Rule
 from gitbark.cache import Cache
 import pgpy
 
-
+import warnings
+warnings.filterwarnings("ignore")
 # Validate that a commit has a trusted signature
 
 class Rule(Rule):
@@ -33,11 +34,12 @@ def require_signature(commit:Commit, validator:Commit, allowed_keys):
         return False, violation
 
     pgpy_pubkeys = generate_pgpy_pubkeys(pubkey_blobs)
-
+        
     for pubkey in pgpy_pubkeys:
         try:
-            pubkey.verify(commit_object, pgpy_signature)
-            return True, None
+            valid = pubkey.verify(commit_object, pgpy_signature)
+            if valid:
+                return True, None
         except:
             continue
     violation = "Commit was signed by untrusted key"
