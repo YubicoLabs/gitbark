@@ -3,8 +3,8 @@ import sys
 
 from ..rules.commit_rules import validate_commit_rules
 from ..rules.branch_rules import validate_branch_rules, get_branch_rules
-from ..reference_update import ReferenceUpdate
-from ..git_api import GitApi
+from ..git.reference_update import ReferenceUpdate
+from ..git.git import Git
 from ..report import Report
 from ..cache import Cache
 
@@ -55,7 +55,7 @@ def verify(ref_update: ReferenceUpdate = None):
         exit_status = ref_update.exit_status
         if exit_status == 1:
             # If local changes are updated with remote
-            git = GitApi()
+            git = Git()
             git.restore_files()
         sys.exit(ref_update.exit_status)
 

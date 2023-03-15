@@ -1,0 +1,11 @@
+module:
+  name: "Bark core module"
+  description: "Core Bark rules"
+  min_version: "0.1.2"
+  rules:
+    - id: require_signature
+      description: "Requires the commit to be signed"
+      entrypoint: "bark_core.signatures.require_signature"
+    - id: "file_not_modified"
+      description: "Prevents modification to speicific files"
+      entrypoint: "bark_core.files.file_not_modified"
