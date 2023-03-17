@@ -17,12 +17,11 @@ class Rule(Rule):
 
 def require_signature(commit:Commit, validator:Commit, allowed_keys):
     signature_blob, commit_object = commit.get_signature()
-
     violation = ""
 
     if not signature_blob:
         # No signature
-        violation = "Commit was not signed"
+        violation = f"Commit was not signed"
         return False, violation
     
     pgpy_signature = pgpy.PGPSignature().from_blob(signature_blob)

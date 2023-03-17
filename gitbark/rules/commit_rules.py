@@ -3,7 +3,7 @@ from gitbark.git.commit import Commit
 from gitbark.git.git import Git
 from gitbark.cache import Cache, CacheEntry
 from gitbark.git.reference_update import ReferenceUpdate
-from gitbark.navigation import Navigation
+from gitbark.wd import WorkingDirectory
 from .import_rules import get_rules
 
 import re
@@ -84,9 +84,8 @@ def get_head_and_bootstrap(ref_update: ReferenceUpdate, branch_name, branch_rule
         boostrap_commit = Commit(boostrap_hash)
         return current_commit, boostrap_commit
     else:
-        navigation = Navigation()
-        navigation.get_root_path()
-        with open(f"{navigation.wd}/.git/gitbark_data/root_commit", 'r') as f:
+        working_directory = WorkingDirectory()
+        with open(f"{working_directory.wd}/.git/gitbark_data/root_commit", 'r') as f:
             boostrap_hash = f.read()
             bootstrap_commit = Commit(boostrap_hash)
             return current_commit, bootstrap_commit

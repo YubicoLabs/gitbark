@@ -3,13 +3,12 @@ from gitbark.git.git import Git
 from gitbark.cache import Cache
 from gitbark.rules.commit_rules import is_commit_valid, find_nearest_valid_ancestors
 from gitbark.rules.branch_rules import get_branch_rules
-from gitbark.navigation import Navigation
+from gitbark.wd import WorkingDirectory
 
 import re
 import sys
 
-navigation = Navigation()
-navigation.get_root_path()
+working_directory = WorkingDirectory()
 git = Git()
 
 def add_detached_signatures_cmd(commit_msg_filepath):
@@ -72,7 +71,7 @@ def add_detached_signatures_cmd(commit_msg_filepath):
 
 
 def write_to_commit_message(commit_to_signatures, commit_msg_filepath):
-    with open(f"{navigation.wd}/{commit_msg_filepath}", "a") as f:
+    with open(f"{working_directory.wd}/{commit_msg_filepath}", "a") as f:
         f.write("\n"*2)
         for commit_hash in commit_to_signatures:
             f.write(f"Including commit: {commit_hash}\n")
@@ -138,5 +137,5 @@ def get_signature_threshold(head:Commit, bootstrap: Commit, cache:Cache):
     
 
 
-# commit_msg_filepath = f"{navigation.wd}/{sys.argv[1]}"
+# commit_msg_filepath = f"{working_directory.wd}/{sys.argv[1]}"
 # add_detached_signatures_cmd(commit_msg_filepath)

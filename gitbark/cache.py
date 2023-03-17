@@ -1,15 +1,9 @@
 
-from .navigation import Navigation
+from .wd import WorkingDirectory
 
 import os
 import pickle
 
-
-# navigation = Navigation()
-# navigation.get_root_path() 
-
-# CACHE_FILE_PATH = f"{navigation.wd}/.git/gitbark_data/cache.pickle"
-# CACHE_FILE_PATH_PARENT = f"{navigation.wd}/.git/gitbark_data"
 
 
 class CacheEntry:
@@ -17,15 +11,12 @@ class CacheEntry:
         self.valid = valid
         self.violations = violations
     
-
-
 class Cache:
     def __init__(self) -> None:
-        navigation = Navigation()
-        navigation.get_root_path() 
+        working_directory = WorkingDirectory()
 
-        self.CACHE_FILE_PATH = f"{navigation.wd}/.git/gitbark_data/cache.pickle"
-        self.CACHE_FILE_PATH_PARENT = f"{navigation.wd}/.git/gitbark_data"
+        self.CACHE_FILE_PATH = f"{working_directory.wd}/.git/gitbark_data/cache.pickle"
+        self.CACHE_FILE_PATH_PARENT = f"{working_directory.wd}/.git/gitbark_data"
         self.cache = {}
         if not os.path.exists(self.CACHE_FILE_PATH_PARENT):
             os.mkdir(self.CACHE_FILE_PATH_PARENT)

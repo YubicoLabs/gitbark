@@ -4,7 +4,7 @@ from ..commands.verify import verify_branch
 from ..git.git import Git
 from ..cache import Cache
 from ..report import Report
-from ..navigation import Navigation
+from ..wd import WorkingDirectory
 
 import os
 
@@ -30,7 +30,7 @@ def install():
             cache = Cache()
             report = Report()
             write_root_hash(root)
-            branch_rules_valid = verify_branch(None, "branch_rules", report, cache)
+            branch_rules_valid = verify_branch("branch_rules", report, cache)
             if branch_rules_valid:
                 # print("Installed successfully")
                 return True
@@ -42,9 +42,8 @@ def install():
 
 
 def write_root_hash(root:Commit):
-    navigation = Navigation()
-    navigation.get_root_path()
-    gitbark_path = f"{navigation.wd}/.git/gitbark_data"
+    working_directory = WorkingDirectory()
+    gitbark_path = f"{working_directory.wd}/.git/gitbark_data"
     root_commit_path = f"{gitbark_path}/root_commit"
     if not os.path.exists(gitbark_path):
         os.mkdir(gitbark_path)
@@ -54,9 +53,8 @@ def write_root_hash(root:Commit):
 
 
 def is_installed(root: Commit):
-    navigation = Navigation()
-    navigation.get_root_path()
-    root_commit_path = f"{navigation.wd}/.git/gitbark_data/root_commit"
+    working_directory = WorkingDirectory()
+    root_commit_path = f"{working_directory.wd}/.git/gitbark_data/root_commit"
     if os.path.exists(root_commit_path):
         with open(root_commit_path, 'r') as f:
             root_hash = f.read()

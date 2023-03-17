@@ -1,12 +1,11 @@
 from gitbark.git.commit import Commit
 from gitbark.git.git import Git
-from gitbark.navigation import Navigation
+from gitbark.wd import WorkingDirectory
 
 import subprocess
 
 git = Git()
-navigation = Navigation()
-navigation.get_root_path()
+working_directory = WorkingDirectory
 
 
 def approve_cmd(commit_hash, key_id):
@@ -33,7 +32,7 @@ def approve_cmd(commit_hash, key_id):
 
 
 def create_signature(commit_obj):
-    gpg_process = subprocess.Popen(["gpg", "--armor", "--detach-sign", "-"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, cwd=navigation.wd)
+    gpg_process = subprocess.Popen(["gpg", "--armor", "--detach-sign", "-"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, cwd=working_directory.wd)
     signature, _ = gpg_process.communicate(input=commit_obj.encode())
     signature_str = signature.decode()
 
@@ -41,7 +40,7 @@ def create_signature(commit_obj):
 
 
 def create_signature_blob(signature):
-    git_process = subprocess.Popen(["git", "hash-object", "--stdin", "-w", "-t", "blob"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, cwd=navigation.wd)
+    git_process = subprocess.Popen(["git", "hash-object", "--stdin", "-w", "-t", "blob"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, cwd=working_directory.wd)
     blob_hash, _ = git_process.communicate(input=signature.encode())
     blob_hash_str = blob_hash.decode()
 

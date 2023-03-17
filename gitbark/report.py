@@ -37,7 +37,7 @@ class Report:
     def print_report(self) -> None:
         if self.output:
             for branch in self.output.keys():
-                branch_report = self.__get_branch(branch)
+                branch_report = self.get_branch(branch)
                 print()
                 if branch_report.ref_update:
                     if branch_report.ref_update.is_on_local_branch():
@@ -59,20 +59,23 @@ class Report:
         if not branch in self.output:
             self.output[branch] = BranchReport(branch)
     
-    def __get_branch(self, branch) -> BranchReport:
-        return self.output[branch]
+    def get_branch(self, branch) -> BranchReport:
+        if branch in self.output:
+            return self.output[branch]
+        else:
+            return None
 
     def add_branch_rule_violations(self, branch, violations) -> None:
         if not branch in self.output:
             self.__add_branch(branch)
-        branch_report = self.__get_branch(branch)
+        branch_report = self.get_branch(branch)
         for violation in violations:
             branch_report.add_branch_rule_violation(violation)
     
     def add_commit_rule_violations(self, branch, violations):
         if not branch in self.output:
             self.__add_branch(branch)
-        branch_report = self.__get_branch(branch)
+        branch_report = self.get_branch(branch)
         for violation in violations:
             branch_report.add_commit_rule_violation(violation)
 
@@ -80,7 +83,7 @@ class Report:
         if not branch in self.output:
             self.__add_branch(branch)
         
-        branch_report = self.__get_branch(branch)
+        branch_report = self.get_branch(branch)
         branch_report.add_reference_reset(ref_update)
 
     
