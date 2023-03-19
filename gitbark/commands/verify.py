@@ -9,7 +9,7 @@ from ..report import Report
 from ..cache import Cache
 
 # Should be able to take as input branch, commit and boostrap
-def verify(all:bool, ref_update: ReferenceUpdate = None) -> Report: 
+def verify(all:bool=False, ref_update: ReferenceUpdate = None) -> Report: 
     """ Verify Git repository
 
     Note: This function takes ref_update as an optional parameter. This is to allow running the function from 
