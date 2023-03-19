@@ -1,0 +1,27 @@
+name: Ubuntu
+
+on: [push, pull_request]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11.1'
+          cache: poetry
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get install -qq swig libpcsclite-dev
+          poetry install
+      - name: Run unit tests
+        run: poetry run pytest
