@@ -19,8 +19,10 @@ def find_nearest_valid_ancestors(commit:Commit, boostrap_commit: Commit, cache: 
     """Return the nearest valid ancestors"""
     parents = commit.get_parents()
     for parent in parents:
-        if is_commit_valid(parent, boostrap_commit, cache):
+        if cache.get(parent.hash).valid:
             valid_ancestors.append(parent)
+        # if is_commit_valid(parent, boostrap_commit, cache):
+        #     valid_ancestors.append(parent)
         else:
             nearest_valid_ancestors = find_nearest_valid_ancestors(parent, boostrap_commit, cache, valid_ancestors)
             valid_ancestors.extend(nearest_valid_ancestors)
@@ -49,7 +51,6 @@ def is_commit_valid(commit: Commit, bootstrap_commit: Commit, cache: Cache):
         return True
 
     parents = commit.get_parents()
-    
     validators = []
     for parent in parents:
         if is_commit_valid(parent, bootstrap_commit, cache):
@@ -92,7 +93,6 @@ def get_head_and_bootstrap(ref_update: ReferenceUpdate, branch_name, branch_rule
 
 def validate_rules(commit:Commit, validator: Commit, cache: Cache):
     rules = get_rules(validator)
-
     passes_rules = True
     for rule in rules:
         if not rule.validate(commit, validator, cache):

@@ -4,6 +4,7 @@ from gitbark.rules.rule import Rule
 from gitbark.cache import Cache
 
 import pgpy
+from pgpy.types import SignatureVerification
 import re
 
 class Rule(Rule):
@@ -16,13 +17,17 @@ class Rule(Rule):
     
 
 def require_approval(commit: Commit, validator: Commit, allowed_keys, threshold, cache:Cache):
+    """
+    Verifies that the parent from the merged branch contains a threshold of approvals. These approvals are detached signatures
+    included in the merge commit message. 
+
+    Note: The second parent of a merge request will always be the parent of the merged branch. 
+    """
     parents = commit.get_parents()
-    invalid_parents = []
+
+    require_approval = parents[1:]
     violation = ""
 
-    for parent in parents:
-        if not cache.get(parent.hash).valid:
-            invalid_parents.append(parent)
 
     detached_signatures = get_detached_signatures(commit)
  
@@ -31,7 +36,7 @@ def require_approval(commit: Commit, validator: Commit, allowed_keys, threshold,
 
     ## Need to check that each invalid parent has been signed by threshold of developers and that the signature is included in the commit
 
-    for parent in invalid_parents:
+    for parent in require_approval:
         ## For each parent check that threshold signatures of it is present i detached
         number_of_signatures = check_number_of_signatures(parent, pgpy_pubkeys, detached_signatures)
         if number_of_signatures < threshold:
@@ -41,15 +46,22 @@ def require_approval(commit: Commit, validator: Commit, allowed_keys, threshold,
 
 def check_number_of_signatures(commit: Commit, pgpy_pubkeys, signatures):
     number_of_signatures = 0
+    fingerprints_used = {}
     for signature in signatures:
         for pubkey in pgpy_pubkeys:
             try:
-                valid = pubkey.verify(commit.get_commit_object(), signature)
-                if valid:
+                signature_verification = pubkey.verify(commit.get_commit_object(), signature)
+                fingerprint = None
+                if signature_verification.good_signatures:
+                    sigsubj = next(signature_verification.good_signatures)
+                    key = sigsubj.by
+                    fingerprint = str(key.fingerprint)
+                if signature_verification and not fingerprint in fingerprints_used:
                     number_of_signatures += 1
+                if fingerprint:
+                    fingerprints_used[fingerprint] = True
             except:
                 continue
-            
     return number_of_signatures
 
 def get_detached_signatures(commit:Commit):
