@@ -23,5 +23,6 @@ jobs:
         run: |
           sudo apt-get install -qq swig libpcsclite-dev
           poetry install
+
       - name: Run unit tests
         run: poetry run pytest

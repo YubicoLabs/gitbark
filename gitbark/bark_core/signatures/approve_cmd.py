@@ -4,11 +4,12 @@ from gitbark.wd import WorkingDirectory
 
 import subprocess
 
-git = Git()
-working_directory = WorkingDirectory
+
+
 
 
 def approve_cmd(commit_hash, key_id):
+    git = Git()
     """ Creates a signature over a commit and stores it in ref (refs/signatures/{commit_hash}/{key_id})
 
     TODO: It should possible for the user to adds its key ID in a config file
@@ -21,18 +22,19 @@ def approve_cmd(commit_hash, key_id):
     commit_obj = commit.get_commit_object()
     approve = input(f"Are you sure you want to approve commit {commit_hash} (yes/no)? ")
     if approve == "yes":
-        signature = create_signature(commit_obj)
+        signature = create_signature(commit_obj, key_id)
         blob_hash = create_signature_blob(signature)
         ref_name = f"refs/signatures/{commit_hash}/{key_id}"
         git.update_ref(ref_name, blob_hash)
-        git.push_ref(f'{ref_name}:{ref_name}')
+        # git.push_ref(f'{ref_name}:{ref_name}')
     else:
         print("Aborting approval")
     return
 
 
-def create_signature(commit_obj):
-    gpg_process = subprocess.Popen(["gpg", "--armor", "--detach-sign", "-"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, cwd=working_directory.wd)
+def create_signature(commit_obj, key_id):
+    working_directory = WorkingDirectory()
+    gpg_process = subprocess.Popen(["gpg", "-u", key_id ,"--armor", "--detach-sign", "-"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, cwd=working_directory.wd)
     signature, _ = gpg_process.communicate(input=commit_obj.encode())
     signature_str = signature.decode()
 
@@ -40,6 +42,7 @@ def create_signature(commit_obj):
 
 
 def create_signature_blob(signature):
+    working_directory = WorkingDirectory()
     git_process = subprocess.Popen(["git", "hash-object", "--stdin", "-w", "-t", "blob"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, cwd=working_directory.wd)
     blob_hash, _ = git_process.communicate(input=signature.encode())
     blob_hash_str = blob_hash.decode()

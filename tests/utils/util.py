@@ -19,6 +19,7 @@ class Environment():
         self.external_repo = Repo(f"{self.cwd}/{EXTERNAL_REPO_PATH}")
 
         self.user1_key_id = "7DD61D90C0FC215E"
+        self.user1_key_fingerprint= "9746FCFF80D4D1EE94D2BD3B7DD61D90C0FC215E"
         self.user2_key_id = "3504E1A6A48F7C8E"
     
     def clean(self):
@@ -31,7 +32,7 @@ class Repo():
         self.wd = wd
 
     def initialize_git(self):
-        self.cmd("git", "init")
+        self.cmd("git", "init", "-b", "main")
 
     def reset_to_previous_commit(self):
         self.cmd("git","reset", "--hard", "HEAD^")
