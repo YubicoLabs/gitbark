@@ -8,9 +8,6 @@ from gitbark.wd import WorkingDirectory
 import re
 import sys
 
-
-
-
 def add_detached_signatures_cmd(commit_msg_filepath):
     git = Git()
     branch_name = git.symbolic_ref("HEAD")
@@ -72,7 +69,7 @@ def add_detached_signatures_cmd(commit_msg_filepath):
 
 def write_to_commit_message(commit_to_signatures, commit_msg_filepath):
     working_directory = WorkingDirectory()
-    with open(f"{working_directory.wd}/{commit_msg_filepath}", "a") as f:
+    with open(f"{working_directory.wd}/{commit_msg_filepath}", "w") as f:
         f.write("\n"*2)
         for commit_hash in commit_to_signatures:
             f.write(f"Including commit: {commit_hash}\n")
@@ -135,10 +132,3 @@ def get_signature_threshold(head:Commit, bootstrap: Commit, cache:Cache):
                         threshold = rule["threshold"]
 
     return threshold
-
-
-    
-
-
-# commit_msg_filepath = f"{working_directory.wd}/{sys.argv[1]}"
-# add_detached_signatures_cmd(commit_msg_filepath)
