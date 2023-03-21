@@ -1,6 +1,6 @@
 
 import sys
-
+import re
 from ..rules.commit_rules import validate_commit_rules
 from ..rules.branch_rules import validate_branch_rules, get_branch_rules
 from ..git.reference_update import ReferenceUpdate
@@ -37,7 +37,8 @@ def verify_all(cache: Cache, report: Report):
     for rule in branch_rules:
         for _, branch_name in rule["branches"]:
             verify_branch(branch_name, report, cache, branch_rule=rule)
-    verify_branch("refs/remotes/origin/branch_rules", report, cache)
+    if ref_exists("refs/remotes/origin/branch_rules"):
+        verify_branch("refs/remotes/origin/branch_rules", report, cache)
     
     cache.dump()
     handle_exit(report)
@@ -46,7 +47,7 @@ def verify_all(cache: Cache, report: Report):
 def verify_ref_update(ref_update: ReferenceUpdate, cache: Cache, report: Report):
     if ref_update.is_ref_deletion():
         return report
-
+    
     if not verify_branch("branch_rules", report, cache, ref_update=ref_update):
         cache.dump()
         return report
@@ -54,8 +55,11 @@ def verify_ref_update(ref_update: ReferenceUpdate, cache: Cache, report: Report)
     branch_rules = get_branch_rules()
 
     for rule in branch_rules:
-        branch_names = [entry[1] for entry in rule["branches"]]
-        if ref_update.ref_name in branch_names:
+        pattern = rule["pattern"]
+        short_branch_name = ref_update.ref_name.split("/")
+        short_branch_name = short_branch_name[-1]
+
+        if re.search(pattern, short_branch_name):
             verify_branch(ref_update.ref_name, report, cache, ref_update=ref_update, branch_rule=rule)
     
     cache.dump()
@@ -79,6 +83,14 @@ def verify_current_branch(cache:Cache, report: Report):
     cache.dump()
     handle_exit(report)
     return report
+
+def ref_exists(ref_name):
+    git = Git()
+    try:
+        git.get_ref(ref_name)
+        return True
+    except:
+        return False
 
 
 def handle_exit(report:Report, ref_update: ReferenceUpdate = None):

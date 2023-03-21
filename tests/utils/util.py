@@ -17,6 +17,7 @@ class Environment():
 
         self.local_repo = Repo(f"{self.cwd}/{LOCAL_REPO_PATH}")
         self.external_repo = Repo(f"{self.cwd}/{EXTERNAL_REPO_PATH}")
+        self.remote = Remote(f"{self.cwd}/{REMOTE_REPO_PATH}")
 
         self.user1_key_id = "7DD61D90C0FC215E"
         self.user1_key_fingerprint= "9746FCFF80D4D1EE94D2BD3B7DD61D90C0FC215E"
@@ -24,6 +25,22 @@ class Environment():
     
     def clean(self):
         shutil.rmtree(self.cwd)
+
+class Remote():
+    def __init__(self, wd):
+        if not os.path.exists(wd):
+            os.mkdir(wd)
+        self.wd = wd
+
+    def initialize_git(self):
+        self.cmd("git", "init", "--bare")
+    
+    def cmd(self, *args, shell=False):
+        try:
+            result = subprocess.run(args, capture_output=True, check=True, text=True, shell=shell, cwd=self.wd)
+            return result.stdout.strip(), result.returncode
+        except (subprocess.CalledProcessError, OSError) as e:
+            print(f"Error running command: {e}")
 
 class Repo():
     def __init__(self, wd) -> None:
@@ -34,15 +51,22 @@ class Repo():
     def initialize_git(self):
         self.cmd("git", "init", "-b", "main")
 
-    def reset_to_previous_commit(self):
-        self.cmd("git","reset", "--hard", "HEAD^")
+    def reset_to_previous_commit(self, hooks=False):
+        if hooks:
+            prev_head, _, _  = self.cmd("git", "rev-parse", "HEAD^")
+            self.cmd(f"echo {prev_head} > .git/refs/heads/main", shell=True)
+            self.cmd("git", "restore", "--staged", ".")
+            self.cmd("git", "restore", ".")
+            self.cmd("git", "clean", "-f", "-x")
+        else:
+            self.cmd("git","reset", "--hard", "HEAD^")
 
     def initialize_commit_rules_on_branch(self, commit_rules, pubkeys, signing_key):
         self.create_commit_rules(commit_rules)
         self.add_pubkeys(pubkeys)
         self.cmd("git", "add", ".")
         self.cmd("git", "commit", "-S", f"--gpg-sign={signing_key}", "-m", "Initial commit")
-        commit_hash, _ = self.cmd("git", "rev-parse", "HEAD")
+        commit_hash, _, _ = self.cmd("git", "rev-parse", "HEAD")
         return commit_hash
     
     def initialize_branch_rules(self, commit_rules, branch_rules, pubkeys, signing_key):
@@ -85,12 +109,21 @@ class Repo():
 
     def add_pubkey(self, pubkey):
         pubkeys_path = f"{os.getcwd()}/tests/utils/gpg/.pubkeys"
-        self.cmd("cp", f"{pubkeys_path}/{pubkey}", f"{self.wd}/.gitbark/.pubkeys")     
+        self.cmd("cp", f"{pubkeys_path}/{pubkey}", f"{self.wd}/.gitbark/.pubkeys")
+
+    def install_hooks(self):
+        hooks_path = f"{os.getcwd()}/tests/utils/hooks"
+        self.cmd("cp", "-a", f"{hooks_path}/.", f"{self.wd}/.git/hooks")
+
 
     def cmd(self, *args, shell=False):
         try:
             result = subprocess.run(args, capture_output=True, check=True, text=True, shell=shell, cwd=self.wd)
-            return result.stdout.strip(), result.returncode
+            return result.stdout.strip(), result.stderr.strip(), result.returncode
         except (subprocess.CalledProcessError, OSError) as e:
+            # print("stderr: ", e.stderr)
+            # print("stdout: ", e.stdout)
             print(f"Error running command: {e}")
+            return e.stdout.strip(), e.stderr.strip(), e.returncode
+            
     

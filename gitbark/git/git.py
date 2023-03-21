@@ -1,5 +1,6 @@
 from ..wd import WorkingDirectory
 
+import os
 import subprocess
 
 class Git:
@@ -23,7 +24,7 @@ class Git:
             raise cpe
     
     def get_ref(self, pattern, discard_ref_name=True):
-        return subprocess.check_output(["git", "show-ref", pattern, "-s" if discard_ref_name else ""], text=True, cwd=self.working_directory.wd)
+        return subprocess.check_output(["git", "show-ref", pattern], text=True, cwd=self.working_directory.wd)
 
     def get_refs(self):
         return subprocess.check_output(["git", "show-ref"], text=True, cwd=self.working_directory.wd)

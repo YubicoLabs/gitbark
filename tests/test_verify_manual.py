@@ -18,7 +18,7 @@ def replace_stdin(target):
     sys.stdin = orig
 
 @pytest.fixture(autouse=True)
-def set_env(environment):
+def set_env(environment:Environment):
     os.environ["TEST_WD"] = environment.local_repo.wd
     os.environ["GNUPGHOME"] = f"{os.getcwd()}/tests/utils/gpg/.gnupg"
 
@@ -183,7 +183,7 @@ def test_invalid_parents_included(bark_with_disallow_invalid_parents:Environment
     assert(branch_report_invalid != None)
     assert(len(branch_report_invalid.commit_rule_violations) == 1)
 
-    head_commit, _ = bark_with_disallow_invalid_parents.local_repo.cmd("git","rev-parse", "HEAD")
+    head_commit, _, _ = bark_with_disallow_invalid_parents.local_repo.cmd("git","rev-parse", "HEAD")
     bark_with_disallow_invalid_parents.local_repo.cmd("echo nonsense >> README.md", shell=True)
     bark_with_disallow_invalid_parents.local_repo.cmd("git", "add", ".")
     bark_with_disallow_invalid_parents.local_repo.cmd("git", "commit", "-S", f"--gpg-sign={bark_with_disallow_invalid_parents.user1_key_id}", "-m", head_commit)
@@ -207,7 +207,7 @@ def bark_with_require_approvals(bark_installed:Environment):
     return bark_installed
 
 def test_require_approval_below_threshold(bark_with_require_approvals:Environment):
-    commit_hash, _ = bark_with_require_approvals.local_repo.cmd("git", "rev-parse", "refs/heads/feat")
+    commit_hash, _, _ = bark_with_require_approvals.local_repo.cmd("git", "rev-parse", "refs/heads/feat")
 
     with replace_stdin(StringIO("yes")):
         approve_cmd(commit_hash, bark_with_require_approvals.user1_key_id)
@@ -226,7 +226,7 @@ def test_require_approval_below_threshold(bark_with_require_approvals:Environmen
     assert(len(branch_report.commit_rule_violations) == 1)
 
 def test_require_approval_above_threshold(bark_with_require_approvals:Environment):
-    commit_hash, _ = bark_with_require_approvals.local_repo.cmd("git", "rev-parse", "refs/heads/feat")
+    commit_hash, _, _ = bark_with_require_approvals.local_repo.cmd("git", "rev-parse", "refs/heads/feat")
 
     with replace_stdin(StringIO("yes")):
         approve_cmd(commit_hash, bark_with_require_approvals.user1_key_id)
@@ -249,7 +249,7 @@ def test_require_approval_above_threshold(bark_with_require_approvals:Environmen
     assert(branch_report == None)
 
 def test_require_approval_same_key(bark_with_require_approvals:Environment):
-    commit_hash, _ = bark_with_require_approvals.local_repo.cmd("git", "rev-parse", "refs/heads/feat")
+    commit_hash, _, _ = bark_with_require_approvals.local_repo.cmd("git", "rev-parse", "refs/heads/feat")
 
     with replace_stdin(StringIO("yes")):
         approve_cmd(commit_hash, bark_with_require_approvals.user1_key_id)
