@@ -9,9 +9,9 @@ from .import_rules import get_rules
 import re
 
 
-def validate_commit_rules(ref_update:ReferenceUpdate, branch_name, branch_rule, cache:Cache):
+def validate_commit_rules(ref_update:ReferenceUpdate, branch_name, branch_rule, cache:Cache, boostrap=None):
     """Validates commit rules on branch"""
-    current_commit, bootstrap_commit = get_head_and_bootstrap(ref_update, branch_name, branch_rule)
+    current_commit, bootstrap_commit = get_head_and_bootstrap(ref_update, branch_name, branch_rule, boostrap)
     passes_commit_rules = is_commit_valid(current_commit, bootstrap_commit, cache)
     return passes_commit_rules, current_commit.violations
 
@@ -67,7 +67,7 @@ def is_commit_valid(commit: Commit, bootstrap_commit: Commit, cache: Cache):
     cache.set(commit.hash, CacheEntry(True, commit.violations))
     return True
 
-def get_head_and_bootstrap(ref_update: ReferenceUpdate, branch_name, branch_rule):
+def get_head_and_bootstrap(ref_update: ReferenceUpdate, branch_name, branch_rule, bootstrap):
     git = Git()
     current_head = ""
     
@@ -79,6 +79,10 @@ def get_head_and_bootstrap(ref_update: ReferenceUpdate, branch_name, branch_rule
     else:
         current_head = git.rev_parse(branch_name).rstrip()
     current_commit = Commit(current_head)
+
+    if bootstrap:
+        bootstrap_commit = Commit(bootstrap)
+        return current_commit, bootstrap_commit
 
     if short_branch_name != "branch_rules":
         boostrap_hash = branch_rule["validate_from"]

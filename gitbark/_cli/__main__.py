@@ -17,8 +17,9 @@ def install():
 @cli.command()
 @click.option('-r', '--ref-update', type=(str, str, str))
 @click.option("--all", is_flag=True, show_default=True, default=False, help="Verify all branches")
-def verify(ref_update, all):
-    verify_cmd(all, ref_update)
+@click.option("-b", "--bootstrap", type=str, help="Verify from bootstrap")
+def verify(ref_update, all, bootstrap):
+    verify_cmd(all, ref_update, bootstrap)
     
 
 # TODO: Add these commands dynamically
