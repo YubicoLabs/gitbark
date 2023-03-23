@@ -15,7 +15,6 @@ def verify(all:bool=False, ref_update: ReferenceUpdate = None) -> Report:
     Note: This function takes ref_update as an optional parameter. This is to allow running the function from 
     a reference-transaction hook and manually.
     """
-    
     cache = Cache()
     report = Report()
 
@@ -133,10 +132,16 @@ def branch_rule_violations_action(violations, branch_name, report:Report, ref_up
 
 
 def commit_rule_violations_action(violations, branch_name, report:Report, ref_update:ReferenceUpdate):
+    git = Git()
+    branch_head = ""
+    if ref_update and ref_update.ref_name == branch_name:
+        branch_head = ref_update.new_ref
+    else: 
+        branch_head = git.rev_parse(branch_name)
     if ref_update and ref_update.ref_name == branch_name and ref_update.is_on_local_branch():
         ref_update.reset_update()
-        report.add_branch_reference_reset(branch_name, ref_update)
-    report.add_commit_rule_violations(branch_name, violations)
+        report.add_branch_reference_reset(branch_name, ref_update, branch_head)
+    report.add_commit_rule_violations(branch_name, violations, branch_head)
 
 
 

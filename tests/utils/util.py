@@ -121,8 +121,6 @@ class Repo():
             result = subprocess.run(args, capture_output=True, check=True, text=True, shell=shell, cwd=self.wd)
             return result.stdout.strip(), result.stderr.strip(), result.returncode
         except (subprocess.CalledProcessError, OSError) as e:
-            # print("stderr: ", e.stderr)
-            # print("stdout: ", e.stdout)
             print(f"Error running command: {e}")
             return e.stdout.strip(), e.stderr.strip(), e.returncode
             

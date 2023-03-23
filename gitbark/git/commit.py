@@ -63,14 +63,16 @@ class Commit:
 
     def get_trusted_public_keys(self, allowed_keys_regex):
         """Return the set of trusted public keys reference to by the commit"""
-        pubkeys_tree = self.git.get_object(f"{self.hash}:.gitbark/.pubkeys")
-        key_blob_fields = re.findall(f".*{allowed_keys_regex}", pubkeys_tree, flags=re.M)
-        pubkeys = []
-        for key_blob_field in key_blob_fields:
-            key_blob_hash = key_blob_field.split()[2]
-            key = self.git.get_object(key_blob_hash)
-            pubkeys.append(key)
-        return pubkeys
+
+        pubkey_blobs = self.git.cmd("git" ,"ls-tree","--format=%(objectname) %(path)", f"{self.hash}:.gitbark/.pubkeys").split("\n")
+        trusted_pubkeys = []
+        for entry in pubkey_blobs:
+            hash, name = entry.split()
+            if re.search(allowed_keys_regex, name):
+                pubkey = self.git.get_object(hash)
+                trusted_pubkeys.append(pubkey)
+
+        return trusted_pubkeys
     
     def get_files_modified(self, validator):
         """Return the set of files changed between validator commit and current commit"""

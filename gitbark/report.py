@@ -2,8 +2,9 @@ from .git.reference_update import ReferenceUpdate
 
 class BranchReport:
 
-    def __init__(self, branch) -> None:
+    def __init__(self, branch, head=None) -> None:
         self.branch = branch
+        self.head = head
         self.branch_rule_violations = []
         self.commit_rule_violations = []
         self.ref_update = None
@@ -42,11 +43,11 @@ class Report:
                 if branch_report.ref_update:
                     if branch_report.ref_update.is_on_local_branch():
                         if branch_report.ref_update.from_remote():
-                            print(f"Error: Incoming change on {branch} with commit ID {branch_report.ref_update.new_ref} violates the following rules: ")
+                            print(f"Error: Incoming commit {branch_report.ref_update.new_ref} on {branch} is invalid. ")
                         else:
-                            print(f"Warning: Incoming change on {branch} with commit ID {branch_report.ref_update.new_ref} violates the following rules: ")
+                            print(f"Warning: Incoming commit {branch_report.ref_update.new_ref} on {branch} is invalid. ")
                 else:
-                    print(f"Warning: {branch} is invalid. The following rules are violated: ")
+                    print(f"Warning: commit {branch_report.head} on {branch} is invalid. ")
 
                 branch_report.print_branch_rule_violations()
                 branch_report.print_commit_rule_violations()
@@ -55,9 +56,9 @@ class Report:
         else:
             print("Repository is in a valid state")
 
-    def __add_branch(self, branch) -> None:
+    def __add_branch(self, branch, head=None) -> None:
         if not branch in self.output:
-            self.output[branch] = BranchReport(branch)
+            self.output[branch] = BranchReport(branch, head)
     
     def get_branch(self, branch) -> BranchReport:
         if branch in self.output:
@@ -65,23 +66,23 @@ class Report:
         else:
             return None
 
-    def add_branch_rule_violations(self, branch, violations) -> None:
+    def add_branch_rule_violations(self, branch, violations, head=None) -> None:
         if not branch in self.output:
-            self.__add_branch(branch)
+            self.__add_branch(branch, head)
         branch_report = self.get_branch(branch)
         for violation in violations:
             branch_report.add_branch_rule_violation(violation)
     
-    def add_commit_rule_violations(self, branch, violations):
+    def add_commit_rule_violations(self, branch, violations, head=None):
         if not branch in self.output:
-            self.__add_branch(branch)
+            self.__add_branch(branch, head)
         branch_report = self.get_branch(branch)
         for violation in violations:
             branch_report.add_commit_rule_violation(violation)
 
-    def add_branch_reference_reset(self, branch, ref_update:ReferenceUpdate):
+    def add_branch_reference_reset(self, branch, ref_update:ReferenceUpdate, head=None):
         if not branch in self.output:
-            self.__add_branch(branch)
+            self.__add_branch(branch, head)
         
         branch_report = self.get_branch(branch)
         branch_report.add_reference_reset(ref_update)

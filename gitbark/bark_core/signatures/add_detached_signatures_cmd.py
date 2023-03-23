@@ -31,10 +31,8 @@ def add_detached_signatures_cmd(commit_msg_filepath):
     
     # Commits that require approvals
     require_approvals = []
-    if not is_commit_valid(head, branch_bootstrap, cache):
-        require_approvals.append(head)
-    if not is_commit_valid(merge_head, branch_bootstrap, cache):
-        require_approvals.append(merge_head)
+ 
+    require_approvals.append(merge_head)
 
     commit_to_signatures = {}
     violations = []
@@ -53,6 +51,7 @@ def add_detached_signatures_cmd(commit_msg_filepath):
         for violation in violations:
             print("  -", violation)
         print("\nAborting merge commit")
+        sys.exit(1)
         return
     else:
         commit_hashes = commit_to_signatures.keys()
@@ -84,7 +83,10 @@ def get_and_fetch_signatures(commit: Commit, threshold):
     if len(signatures) >= threshold:
         return signatures, None
     else:
-        git.fetch("origin refs/signatures/*:refs/signatures/*")
+        try:
+            git.fetch("origin refs/signatures/*:refs/signatures/*")
+        except:
+            pass
         new_signatures = get_signatures(commit)
         if len(new_signatures) >= threshold:
             return new_signatures, None

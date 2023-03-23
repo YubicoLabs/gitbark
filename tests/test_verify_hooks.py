@@ -21,6 +21,7 @@ def set_env_hooks(environment_with_hooks:Environment):
 @pytest.fixture(scope="session")
 def bark_installed_environment(environment_with_hooks:Environment):
     environment_with_hooks.local_repo.configure_git_user("User1", "user1@test.com")
+    environment_with_hooks.external_repo.configure_git_user("User2", "user2@test.com")
     commit_rules= {
         "rules": [
             {"rule": "require_signature","allowed_keys": ".*.asc"}
@@ -83,7 +84,7 @@ def untrusted_changes_on_remote(bark_installed_environment:Environment):
 
 def test_fetch_untrsuted_changes(untrusted_changes_on_remote:Environment):
     stdout, stderr , _ = untrusted_changes_on_remote.local_repo.cmd("git", "fetch", "origin")
-    assert "Warning: refs/remotes/origin/main is invalid" in stderr
+    assert f"refs/remotes/origin/main is invalid" in stderr
 
 def test_pull_untrusted_changes(untrusted_changes_on_remote:Environment):
     current_head, _, _ = untrusted_changes_on_remote.local_repo.cmd("git", "rev-parse", "HEAD")
@@ -93,7 +94,7 @@ def test_pull_untrusted_changes(untrusted_changes_on_remote:Environment):
     untrusted_changes_on_remote.local_repo.cmd("git", "merge", "--abort")
     untrusted_changes_on_remote.local_repo.cmd("git", "clean", "-f", "-x")
     assert(current_head == new_head)
-    assert("Error: Incoming change on refs/heads/main" in stderr)
+    assert(f"refs/heads/main is invalid" in stderr)
     assert(staged_files == "")
 
 @pytest.fixture(scope="session")
@@ -111,7 +112,7 @@ def rollback_changes_on_remote(bark_installed_environment:Environment):
 
 def test_fetch_rollback(rollback_changes_on_remote:Environment):
     stdout, stderr, _ =  rollback_changes_on_remote.local_repo.cmd("git", "fetch", "origin")
-    assert "Warning: refs/remotes/origin/main is invalid" in stderr
+    assert f"refs/remotes/origin/main is invalid" in stderr
     assert "Commit is not fast-forward" in stderr
 
 def test_pull_rollback(rollback_changes_on_remote:Environment):
@@ -122,7 +123,7 @@ def test_pull_rollback(rollback_changes_on_remote:Environment):
     rollback_changes_on_remote.local_repo.cmd("git", "merge", "--abort")
     rollback_changes_on_remote.local_repo.cmd("git", "clean", "-f", "-x")
     assert(current_head == new_head)
-    assert("Error: Incoming change on refs/heads/main" in stderr)
+    assert("refs/heads/main is invalid" in stderr)
     assert("Commit is not fast-forward" in stderr)
     assert(staged_files == "")
 

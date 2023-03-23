@@ -9,7 +9,8 @@ rule_to_entrypoint = {
     "require_signature": "gitbark.bark_core.signatures.require_signature",
     "require_approval": "gitbark.bark_core.signatures.require_approval",
     "file_not_modified": "gitbark.bark_core.files.file_not_modified",
-    "disallow_invalid_parents": "gitbark.bark_core.parents.disallow_invalid_parents"
+    "disallow_invalid_parents": "gitbark.bark_core.parents.disallow_invalid_parents",
+    "require_number_of_parents": "gitbark.bark_core.parents.require_number_of_parents"
 }
 
 

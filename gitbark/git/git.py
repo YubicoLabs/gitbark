@@ -55,6 +55,13 @@ class Git:
 
     def fetch(self, args):
         subprocess.run(f"git fetch {args}", cwd=self.working_directory, shell=True)
+
+    def cmd(self, *args):
+        try:
+            result = subprocess.run(args, capture_output=True, check=True, text=True, cwd=self.working_directory.wd)
+            return result.stdout.strip()
+        except (subprocess.CalledProcessError, OSError) as e:
+            raise e
     
     def symbolic_ref(self, ref, short=True):
         if short:

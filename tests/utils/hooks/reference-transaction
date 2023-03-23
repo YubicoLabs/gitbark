@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # No need to verify updates to these refs
 ignore_refs=("HEAD" "ORIG_HEAD")
