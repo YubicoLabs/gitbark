@@ -271,6 +271,10 @@ def test_require_approval_same_key(bark_with_require_approvals:Environment):
     assert(branch_report != None)
     assert(len(branch_report.commit_rule_violations) == 1)
 
+
+
+
+
     
     
     

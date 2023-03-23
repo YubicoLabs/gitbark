@@ -9,7 +9,7 @@ from ..report import Report
 from ..cache import Cache
 
 # Should be able to take as input branch, commit and boostrap
-def verify(all:bool=False, ref_update: ReferenceUpdate = None) -> Report: 
+def verify(all:bool=False, ref_update: ReferenceUpdate = None, bootstrap = None) -> Report: 
     """ Verify Git repository
 
     Note: This function takes ref_update as an optional parameter. This is to allow running the function from 
@@ -23,7 +23,7 @@ def verify(all:bool=False, ref_update: ReferenceUpdate = None) -> Report:
     elif all:
         return verify_all(cache, report)
     else:
-        return verify_current_branch(cache, report)
+        return verify_current_branch(cache, report, bootstrap)
 
 
 def verify_all(cache: Cache, report: Report):
@@ -65,19 +65,27 @@ def verify_ref_update(ref_update: ReferenceUpdate, cache: Cache, report: Report)
     handle_exit(report, ref_update)
     return report
 
-def verify_current_branch(cache:Cache, report: Report):
-    if not verify_branch("branch_rules", report, cache):
-        cache.dump()
-        return report
-    
-    branch_rules = get_branch_rules()
+def verify_current_branch(cache:Cache, report: Report, bootstrap):
     git = Git()
     branch_name = git.symbolic_ref("HEAD", short=False)
-
-    for rule in branch_rules:
-        branch_names = [entry[1] for entry in rule["branches"]]
-        if branch_name in branch_names:
-            verify_branch(branch_name, report, cache, branch_rule=rule)
+    if not bootstrap:
+        if not verify_branch("branch_rules", report, cache):
+            cache.dump()
+            return report
+    
+        branch_rules = get_branch_rules()
+        branch_name_tracked = False
+        for rule in branch_rules:
+            branch_names = [entry[1] for entry in rule["branches"]]
+            if branch_name in branch_names:
+                branch_name_tracked = True
+                verify_branch(branch_name, report, cache, branch_rule=rule)
+                break
+        if not branch_name_tracked:
+            print(f"fatal: {branch_name} is not defined in branch_rules. Please specifiy bootstrap commit.")
+            sys.exit(1)
+    else:
+        verify_branch(branch_name, report, cache, bootstrap=bootstrap)
     
     cache.dump()
     handle_exit(report)
@@ -103,7 +111,7 @@ def handle_exit(report:Report, ref_update: ReferenceUpdate = None):
         sys.exit(ref_update.exit_status)
 
 
-def verify_branch(branch_name, report:Report, cache:Cache, ref_update:ReferenceUpdate = None, branch_rule=None):
+def verify_branch(branch_name, report:Report, cache:Cache, ref_update:ReferenceUpdate = None, branch_rule=None, bootstrap=None):
     """Verify branch against branch rules and commit rules
     
     Branch rules and commit rules are dependent, meaning that if branch rules fails,
@@ -117,7 +125,7 @@ def verify_branch(branch_name, report:Report, cache:Cache, ref_update:ReferenceU
         return False
     
     # If ref_update and it matches branch_name, send ref_update to commit_rules, else not
-    passes_commit_rules, commit_rule_violations = validate_commit_rules(ref_update, branch_name, branch_rule, cache)
+    passes_commit_rules, commit_rule_violations = validate_commit_rules(ref_update, branch_name, branch_rule, cache, bootstrap)
     if not passes_commit_rules:
         commit_rule_violations_action(commit_rule_violations, branch_name, report, ref_update)
         return False
