@@ -17,7 +17,8 @@ def approve_cmd(commit_hash, key_id):
 
     if not key_id:
         print("error: no key ID provided")
-        return    
+        return
+    commit_hash = git.rev_parse(commit_hash)    
     commit = Commit(commit_hash)
     commit_obj = commit.get_commit_object()
     approve = input(f"Are you sure you want to approve commit {commit_hash} (yes/no)? ")

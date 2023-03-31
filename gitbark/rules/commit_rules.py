@@ -21,8 +21,6 @@ def find_nearest_valid_ancestors(commit:Commit, boostrap_commit: Commit, cache: 
     for parent in parents:
         if cache.get(parent.hash).valid:
             valid_ancestors.append(parent)
-        # if is_commit_valid(parent, boostrap_commit, cache):
-        #     valid_ancestors.append(parent)
         else:
             nearest_valid_ancestors = find_nearest_valid_ancestors(parent, boostrap_commit, cache, valid_ancestors)
             valid_ancestors.extend(nearest_valid_ancestors)

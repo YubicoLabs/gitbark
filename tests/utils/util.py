@@ -49,7 +49,8 @@ class Repo():
         self.wd = wd
 
     def initialize_git(self):
-        self.cmd("git", "init", "-b", "main")
+        self.cmd("git", "init")
+        self.cmd("git", "checkout", "-b", "main")
 
     def reset_to_previous_commit(self, hooks=False):
         if hooks:

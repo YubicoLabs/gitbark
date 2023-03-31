@@ -64,10 +64,16 @@ class Commit:
     def get_trusted_public_keys(self, allowed_keys_regex):
         """Return the set of trusted public keys reference to by the commit"""
 
-        pubkey_blobs = self.git.cmd("git" ,"ls-tree","--format=%(objectname) %(path)", f"{self.hash}:.gitbark/.pubkeys").split("\n")
+        pubkey_entries = self.git.cmd("git" ,"ls-tree", f"{self.hash}:.gitbark/.pubkeys").split("\n")
+        pubkey_blobs = []
+        for entry in pubkey_entries:
+            if len(entry) > 0:
+                entry_list = entry.split()
+                pubkey_blobs.append(entry_list[2:])
+
         trusted_pubkeys = []
         for entry in pubkey_blobs:
-            hash, name = entry.split()
+            hash, name = entry
             if re.search(allowed_keys_regex, name):
                 pubkey = self.git.get_object(hash)
                 trusted_pubkeys.append(pubkey)
