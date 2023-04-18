@@ -53,11 +53,11 @@ class Commit:
     def get_signature(self):
         """Return the signature and commit object (with signature removed)"""
         commit_object = self.get_commit_object()
-        signature = re.search('-----BEGIN PGP SIGNATURE-----\n(\s.*\n)*\s-----END PGP SIGNATURE-----', commit_object)
+        signature = re.search('-----BEGIN (PGP|SSH) SIGNATURE-----\n(\s.*\n)*\s-----END (PGP|SSH) SIGNATURE-----', commit_object)
         if signature:
             signature = signature.group()
             signature = re.sub("^\s", "", signature, flags=re.M)
-            commit_object = re.sub('gpgsig -----BEGIN PGP SIGNATURE-----\n(\s.*\n)*\s-----END PGP SIGNATURE-----\n', '', commit_object)
+            commit_object = re.sub('gpgsig -----BEGIN (PGP|SSH) SIGNATURE-----\n(\s.*\n)*\s-----END (PGP|SSH) SIGNATURE-----\n', '', commit_object)
 
         return signature, commit_object
 
