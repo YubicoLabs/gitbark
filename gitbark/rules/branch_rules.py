@@ -2,12 +2,13 @@
 from gitbark.git.commit import Commit
 from gitbark.git.reference_update import ReferenceUpdate
 from gitbark.git.git import Git
+from gitbark.cache import Cache, CacheEntry
 
 import re
 import yaml
 
 
-def validate_branch_rules(ref_update:ReferenceUpdate, branch_name, branch_rule):
+def validate_branch_rules(ref_update:ReferenceUpdate, branch_name, branch_rule, cache:Cache):
     """Validates branch rules with respect to ReferenceUpdate
     
     Note: If no reference update, there is no need to evaluate branch_rules 
@@ -18,7 +19,16 @@ def validate_branch_rules(ref_update:ReferenceUpdate, branch_name, branch_rule):
 
     violations = []
 
+
+
     if not ref_update:
+        git = Git()
+        current_head = git.rev_parse(branch_name)
+
+        if cache.has(current_head):
+            value = cache.get(current_head)
+            if not value.valid and value.ref_update and value.branch_name == branch_name:
+                return False, value.violations 
         # Not evaluating branch rules if no ref_update
         return True, violations
 
@@ -36,6 +46,7 @@ def validate_branch_rules(ref_update:ReferenceUpdate, branch_name, branch_rule):
         if not passes_force_push:
             violation = "Commit is not fast-forward"
             violations.append(violation)
+            cache.set(ref_update.new_ref, CacheEntry(False, violations, ref_update=True, branch_name = branch_name))
             return False, violations
 
     return True, violations

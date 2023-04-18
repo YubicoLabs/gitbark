@@ -119,7 +119,7 @@ def verify_branch(branch_name, report:Report, cache:Cache, ref_update:ReferenceU
     """
 
     # If ref_update and it matches branch_name, then validate_branch_rules
-    passes_branch_rules, branch_rule_violations = validate_branch_rules(ref_update, branch_name, branch_rule)
+    passes_branch_rules, branch_rule_violations = validate_branch_rules(ref_update, branch_name, branch_rule, cache)
     if not passes_branch_rules:
         branch_rule_violations_action(branch_rule_violations, branch_name, report, ref_update)
         return False
@@ -132,11 +132,17 @@ def verify_branch(branch_name, report:Report, cache:Cache, ref_update:ReferenceU
     return True
 
 def branch_rule_violations_action(violations, branch_name, report:Report, ref_update:ReferenceUpdate):
-    if ref_update.is_on_local_branch():
+    git = Git()
+    branch_head = ""
+    if ref_update and ref_update.ref_name == branch_name:
+        branch_head = ref_update.new_ref
+    else: 
+        branch_head = git.rev_parse(branch_name)
+    if ref_update and ref_update.is_on_local_branch():
         # If invalid update on local branch, it has to be resetted
         ref_update.reset_update()
-        report.add_branch_reference_reset(branch_name, ref_update)
-    report.add_branch_rule_violations(branch_name, violations)
+        report.add_branch_reference_reset(branch_name, ref_update, branch_head)
+    report.add_branch_rule_violations(branch_name, violations, branch_head)
 
 
 def commit_rule_violations_action(violations, branch_name, report:Report, ref_update:ReferenceUpdate):

@@ -7,9 +7,11 @@ import pickle
 
 
 class CacheEntry:
-    def __init__(self, valid, violations) -> None:
+    def __init__(self, valid, violations, ref_update = False, branch_name = "") -> None:
         self.valid = valid
         self.violations = violations
+        self.ref_update = ref_update
+        self.branch_name = branch_name
     
 class Cache:
     def __init__(self) -> None:
