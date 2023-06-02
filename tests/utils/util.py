@@ -8,23 +8,29 @@ LOCAL_REPO_PATH = "local"
 REMOTE_REPO_PATH = "remote"
 EXTERNAL_REPO_PATH = "attacker"
 
+class Users:
+    def __init__(self, name, email, key_id) -> None:
+        self.name = name
+        self.email = email
+        self.key_id = key_id
+
 class Environment():
-    def __init__(self, tempdir) -> None:
+    def __init__(self, tempdir, users:list[Users]) -> None:
         tempdir_path = f"{os.getcwd()}/{tempdir}"
         if not os.path.exists(tempdir_path):
             os.mkdir(tempdir_path)
         self.cwd = tempdir_path
 
-        self.local_repo = Repo(f"{self.cwd}/{LOCAL_REPO_PATH}")
-        self.external_repo = Repo(f"{self.cwd}/{EXTERNAL_REPO_PATH}")
+        self.users: dict[str, Users] = {user.name: user for user in users}
+
+        self.local = Repo(f"{self.cwd}/{LOCAL_REPO_PATH}")
+        self.external = Repo(f"{self.cwd}/{EXTERNAL_REPO_PATH}")
         self.remote = Remote(f"{self.cwd}/{REMOTE_REPO_PATH}")
 
-        self.user1_key_id = "7DD61D90C0FC215E"
-        self.user1_key_fingerprint= "9746FCFF80D4D1EE94D2BD3B7DD61D90C0FC215E"
-        self.user2_key_id = "3504E1A6A48F7C8E"
-    
     def clean(self):
         shutil.rmtree(self.cwd)
+
+
 
 class Remote():
     def __init__(self, wd):
@@ -38,9 +44,10 @@ class Remote():
     def cmd(self, *args, shell=False):
         try:
             result = subprocess.run(args, capture_output=True, check=True, text=True, shell=shell, cwd=self.wd)
-            return result.stdout.strip(), result.returncode
+            return result.stdout.strip(), result.stderr.strip(), result.returncode
         except (subprocess.CalledProcessError, OSError) as e:
             print(f"Error running command: {e}")
+            return e.stdout.strip(), e.stderr.strip(), e.returncode
 
 class Repo():
     def __init__(self, wd) -> None:
@@ -52,17 +59,12 @@ class Repo():
         self.cmd("git", "init")
         self.cmd("git", "checkout", "-b", "main")
 
-    def reset_to_previous_commit(self, hooks=False):
-        if hooks:
-            prev_head, _, _  = self.cmd("git", "rev-parse", "HEAD^")
-            self.cmd(f"echo {prev_head} > .git/refs/heads/main", shell=True)
-            self.cmd("git", "restore", "--staged", ".")
-            self.cmd("git", "restore", ".")
-            self.cmd("git", "clean", "-f", "-x")
-        else:
-            self.cmd("git","reset", "--hard", "HEAD^")
-
+    def get_head(self):
+        head, _ ,_  = self.cmd("git", "rev-parse", "HEAD")
+        return head.strip()
+    
     def initialize_commit_rules_on_branch(self, commit_rules, pubkeys, signing_key):
+        self.cmd("echo nonsense > README.md", shell=True)
         self.create_commit_rules(commit_rules)
         self.add_pubkeys(pubkeys)
         self.cmd("git", "add", ".")
@@ -111,11 +113,6 @@ class Repo():
     def add_pubkey(self, pubkey):
         pubkeys_path = f"{os.getcwd()}/tests/utils/gpg/.pubkeys"
         self.cmd("cp", f"{pubkeys_path}/{pubkey}", f"{self.wd}/.gitbark/.pubkeys")
-
-    def install_hooks(self):
-        hooks_path = f"{os.getcwd()}/tests/utils/hooks"
-        self.cmd("cp", "-a", f"{hooks_path}/.", f"{self.wd}/.git/hooks")
-
 
     def cmd(self, *args, shell=False):
         try:

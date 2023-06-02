@@ -1,12 +1,17 @@
 from gitbark.commands.verify import verify as verify_cmd
-from gitbark.commands.install import install as install_cmd
-from gitbark.bark_core.signatures.approve_cmd import approve_cmd
-from gitbark.bark_core.signatures.add_detached_signatures_cmd import add_detached_signatures_cmd
+from gitbark.commands.install import install as install_cmd, is_installed
+from gitbark.bark_core.signatures.commands.approve_cmd import approve_cmd
+from gitbark.bark_core.signatures.commands.add_detached_signatures_cmd import add_detached_signatures_cmd
 from gitbark.wd import WorkingDirectory
 import click
 
+import sys
+
+from gitbark import globals
+
 @click.group()
 def cli():
+    globals.init()
     pass
 
 @cli.command()
@@ -19,6 +24,9 @@ def install():
 @click.option("--all", is_flag=True, show_default=True, default=False, help="Verify all branches")
 @click.option("-b", "--bootstrap", type=str, help="Verify from bootstrap")
 def verify(ref_update, all, bootstrap):
+    if not is_installed():
+        print("Error: Bark is not properly installed! Run \"bark install\" first!")
+        sys.exit(1)
     verify_cmd(all, ref_update, bootstrap)
     
 
@@ -37,6 +45,4 @@ def add_detached_signatures(commit_msg_file):
 
 
 if __name__ == "__main__":
-    # Will fail if bark has not been initialized on this repository
-    WorkingDirectory()
     cli()

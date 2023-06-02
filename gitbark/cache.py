@@ -1,10 +1,7 @@
-
-from .wd import WorkingDirectory
-
 import os
 import pickle
 
-
+from gitbark import globals
 
 class CacheEntry:
     def __init__(self, valid, violations, ref_update = False, branch_name = "") -> None:
@@ -15,7 +12,7 @@ class CacheEntry:
     
 class Cache:
     def __init__(self) -> None:
-        working_directory = WorkingDirectory()
+        working_directory = globals.working_directory
 
         self.CACHE_FILE_PATH = f"{working_directory.wd}/.git/gitbark_data/cache.pickle"
         self.CACHE_FILE_PATH_PARENT = f"{working_directory.wd}/.git/gitbark_data"

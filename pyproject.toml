@@ -12,6 +12,7 @@ pgpy = "^0.6.0"
 pyyaml = "^6.0"
 click = "^8.1.3"
 colorama = "^0.4.6"
+pygit2 = "^1.12.1"
 
 [tool.poetry.scripts]
 bark = "gitbark._cli.__main__:cli"

@@ -60,6 +60,12 @@ class Report:
         if not branch in self.output:
             self.output[branch] = BranchReport(branch, head)
     
+    def is_repo_valid(self):
+        if self.output:
+            return False
+        else:
+            return True
+
     def get_branch(self, branch) -> BranchReport:
         if branch in self.output:
             return self.output[branch]

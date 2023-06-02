@@ -15,17 +15,18 @@ def add_detached_signatures_cmd(commit_msg_filepath):
     if not branch_bootstrap:
         return
     
-    head = Commit(git.rev_parse("HEAD"))
+    head_hash = git.repo.revparse_single("HEAD").id.__str__()
+    head = Commit(head_hash)
     merge_head = None
     try:
-        merge_head_hash = git.rev_parse("MERGE_HEAD")
+        merge_head_hash = git.repo.revparse_single("MERGE_HEAD").id.__str__()
         merge_head = Commit(merge_head_hash)
     except:
         print("error: no ongoing merge was found.")
         return
     
     cache = Cache()
-    signature_threshold = get_signature_threshold(head, branch_bootstrap, cache)
+    signature_threshold = get_signature_threshold(head, branch_bootstrap, cache, branch_name)
     if not signature_threshold:
         return
     
@@ -96,10 +97,11 @@ def get_and_fetch_signatures(commit: Commit, threshold):
 
 def get_signatures(commit:Commit):
     git = Git()
-    ref_hashes = git.for_each_ref(f"refs/signatures/{commit.hash}").split()
+    signature_refs = git.get_refs(f"refs/signatures/{commit.hash}/*")
+
     signatures = []
-    for ref_hash in ref_hashes:
-        signature = git.get_object(ref_hash)
+    for ref in signature_refs:
+        signature = git.get_object(ref.target.__str__()).read_raw().decode()
         signatures.append(signature)
     return signatures
 
@@ -114,9 +116,9 @@ def get_bootstrap_commit(branch_name):
             return bootstrap_commit
     return None
 
-def get_signature_threshold(head:Commit, bootstrap: Commit, cache:Cache):
+def get_signature_threshold(head:Commit, bootstrap: Commit, cache:Cache, branch_name):
     threshold = None
-    if is_commit_valid(head, bootstrap, cache):
+    if is_commit_valid(head, bootstrap, cache, branch_name):
         commit_rules = head.get_rules()["rules"]
         for rule in commit_rules:
             if "rule" in rule and rule["rule"] == "require_approval":
