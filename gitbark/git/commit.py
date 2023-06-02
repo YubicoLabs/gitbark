@@ -11,7 +11,9 @@ class Commit:
         """Init Commit with commit hash"""
         self.git = Git()
         self.hash = hash
+        self.object = self.git.repo.get(hash)
         self.parents = None
+        self.children = []
         self.violations = []
         self.any_violations = {}
     
@@ -24,25 +26,20 @@ class Commit:
     
     def get_commit_object(self):
         """Return the Git commit object in text"""
-        return self.git.get_object(self.hash)
+        content = self.object.read_raw()
+        return content
     
     def get_commit_message(self):
-        return self.git.show(f"git show -s --format=%B {self.hash}")
-
-    def get_tree_object(self):
-        """Return the tree object referenced to by the commit"""
-        tree_hash = self.git.rev_parse(self.hash + "^{tree}").rstrip()
-        return self.git.get_object(tree_hash)
+        return self.object.message
     
     def get_blob_object(self, path):
         """Return a specific blob object referenced to by the commit"""
-        return self.git.get_object(f"{self.hash}:{path}")
+        return self.git.repo.revparse_single(f"{self.hash}:{path}").read_raw().decode()
     
     def get_parents(self):
         """Return the parents of a commit"""
-        parent_hashes = self.git.rev_parse(f"{self.hash}^@").splitlines()
-        parents = [Commit(parent_hash) for parent_hash in parent_hashes]
-        # self.parents = parents
+        parents = [Commit(parent_hash.__str__()) for parent_hash in self.object.parent_ids]
+        self.parents = parents
         return parents
 
     def get_rules(self):
@@ -51,31 +48,24 @@ class Commit:
         return yaml.safe_load(rules)
 
     def get_signature(self):
-        """Return the signature and commit object (with signature removed)"""
-        commit_object = self.get_commit_object()
-        signature = re.search('-----BEGIN (PGP|SSH) SIGNATURE-----\n(\s.*\n)*\s-----END (PGP|SSH) SIGNATURE-----', commit_object)
+        """Return the signature and commit object (with signature removed)"""    
+        signature, commit_object = self.object.gpg_signature
+
         if signature:
-            signature = signature.group()
-            signature = re.sub("^\s", "", signature, flags=re.M)
-            commit_object = re.sub('gpgsig -----BEGIN (PGP|SSH) SIGNATURE-----\n(\s.*\n)*\s-----END (PGP|SSH) SIGNATURE-----\n', '', commit_object)
+            signature = signature.decode()
+        
+        if commit_object:
+            commit_object = commit_object.decode()
 
         return signature, commit_object
 
     def get_trusted_public_keys(self, allowed_keys_regex):
         """Return the set of trusted public keys reference to by the commit"""
-
-        pubkey_entries = self.git.cmd("git" ,"ls-tree", f"{self.hash}:.gitbark/.pubkeys").split("\n")
-        pubkey_blobs = []
-        for entry in pubkey_entries:
-            if len(entry) > 0:
-                entry_list = entry.split()
-                pubkey_blobs.append(entry_list[2:])
-
+        pubkey_entries = self.git.repo.revparse_single(f"{self.hash}:.gitbark/.pubkeys")
         trusted_pubkeys = []
-        for entry in pubkey_blobs:
-            hash, name = entry
-            if re.search(allowed_keys_regex, name):
-                pubkey = self.git.get_object(hash)
+        for obj in pubkey_entries:
+            if re.search(allowed_keys_regex, obj.name):
+                pubkey = self.git.repo.get(obj.id).read_raw().decode().strip()
                 trusted_pubkeys.append(pubkey)
 
         return trusted_pubkeys

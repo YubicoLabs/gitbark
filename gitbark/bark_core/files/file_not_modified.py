@@ -8,19 +8,19 @@ import re
 class Rule(Rule):
     def validate(self, commit: Commit, validator: Commit = None, cache: Cache = None) -> bool:
         pattern = self.args["pattern"]
-        passes_rule =  file_not_modified(commit, validator, pattern)        
+        passes_rule =  validate_file_not_modified(commit, validator, pattern)        
 
         if not passes_rule:
             self.add_violation(f"Commit modified locked file(s) with pattern {pattern}")
 
         return passes_rule
 
-def file_not_modified(commit: Commit, validator: Commit, pattern):
+def validate_file_not_modified(commit: Commit, validator: Commit, pattern):
     files_modified = commit.get_files_modified(validator)
-    file_matches = re.search(pattern, files_modified, flags=re.M)
+    file_matches = list(filter(lambda f: re.match(pattern, f), files_modified))
     
-    if file_matches:
-        # File was modified
+    if len(file_matches) > 0:
+        # Commit modifies locked file
         return False
     else:
         return True

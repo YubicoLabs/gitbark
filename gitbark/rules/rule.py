@@ -32,6 +32,11 @@ class CompositeRule(Rule):
         if not any(rule.validate(commit, validator, cache) for rule in self.get_sub_rules()):
             return False
         return True
+    
+    def get_violation(self):
+        violations = [rule.get_violation() for rule in self.get_sub_rules()]
+        return " and ".join(violations)
+        
 
 
 

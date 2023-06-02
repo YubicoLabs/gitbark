@@ -42,7 +42,8 @@ class ReferenceUpdate:
             return False
 
         # Fast-foward
-        remote_refs = self.git.get_remote_refs().split()
+        remote_refs = [ref.target.__str__() for ref in self.git.get_refs("refs/remotes/*")]
+
         if self.new_ref in remote_refs:
             return True
         

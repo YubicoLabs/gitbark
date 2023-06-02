@@ -3,6 +3,7 @@ from gitbark.git.commit import Commit
 from gitbark.git.reference_update import ReferenceUpdate
 from gitbark.git.git import Git
 from gitbark.cache import Cache, CacheEntry
+from pygit2 import Oid
 
 import re
 import yaml
@@ -19,11 +20,11 @@ def validate_branch_rules(ref_update:ReferenceUpdate, branch_name, branch_rule, 
 
     violations = []
 
-
-
     if not ref_update:
         git = Git()
-        current_head = git.rev_parse(branch_name)
+
+        current_head = git.repo.revparse_single(branch_name)
+        current_head = current_head.id.__str__()
 
         if cache.has(current_head):
             value = cache.get(current_head)
@@ -44,6 +45,7 @@ def validate_branch_rules(ref_update:ReferenceUpdate, branch_name, branch_rule, 
     if "allow_force_push" in branch_rule:
         passes_force_push = validate_force_push(ref_update, branch_rule["allow_force_push"])
         if not passes_force_push:
+            # print(ref_update.new_ref, " is not a descendant to ", ref_update.old_ref)
             violation = "Commit is not fast-forward"
             violations.append(violation)
             cache.set(ref_update.new_ref, CacheEntry(False, violations, ref_update=True, branch_name = branch_name))
@@ -70,23 +72,20 @@ def validate_force_push(ref_update:ReferenceUpdate, allow_force_push):
 
 def is_descendant(current: Commit, old: Commit):
     """Checks that the current tip is a descendant of the old tip"""
+    git = Git()
 
-    if current.hash == old.hash:
+    _, exit_status = git.cmd("git", "merge-base", "--is-ancestor", old.hash, current.hash)
+
+    if exit_status == 0:
         return True
-    if len(current.get_parents()) == 0:
+    else:
         return False
-
-    parents = current.get_parents()
-    for parent in parents:
-        if is_descendant(parent, old):
-            return True
-    return False
 
 def get_branch_rules():
     """Returns the latest branch_rules"""
     
     git = Git()
-    branch_rules_head = git.rev_parse("branch_rules").rstrip()
+    branch_rules_head = git.repo.revparse_single("branch_rules").id.__str__()
     branch_rules_commit = Commit(branch_rules_head)
 
     branch_rules = branch_rules_commit.get_blob_object(".gitbark/branch_rules.yaml")
@@ -96,8 +95,9 @@ def get_branch_rules():
     # Find matching branches
     for rule in branch_rules:
         pattern = rule["pattern"]
-        all_branches = git.get_refs()
-        matching_branches = re.findall(f".*{pattern}", all_branches)
-        rule["branches"] = [branch.split() for branch in matching_branches]
+        regex_pattern = re.compile(f".*{pattern}")
+        all_branches = list(git.repo.references)
+        matching_branches = [branch for branch in all_branches if regex_pattern.match(branch)]
+        rule["branches"] = matching_branches
     return branch_rules
 
