@@ -33,9 +33,10 @@ def verify(ref_update, all, bootstrap):
 # TODO: Add these commands dynamically
 @cli.command()
 @click.argument("commit")
-@click.option('--key-id', type=str)
-def approve(commit, key_id):
-    approve_cmd(commit, key_id)
+@click.option('--gpg-sign', type=str)
+@click.option('--ssh-key-path', type=str)
+def approve(commit, gpg_sign, ssh_key_path):
+    approve_cmd(commit, gpg_sign, ssh_key_path)
 
 @cli.command(name="add-detached-signatures")
 @click.argument("commit-msg-file", type=str)

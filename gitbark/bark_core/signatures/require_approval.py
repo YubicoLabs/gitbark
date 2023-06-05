@@ -25,6 +25,11 @@ def require_approval(commit: Commit, validator: Commit, allowed_keys, threshold,
     """
     parents = commit.get_parents()
 
+    if len(parents) <= 1:
+        # Require approval can only be applied on pull requests
+        violation = f"Commit does not originate from a pull request"
+        return False, violation
+    
     require_approval = parents[1:]
     violation = ""
 
