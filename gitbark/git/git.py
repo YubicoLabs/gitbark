@@ -27,7 +27,7 @@ class Git:
         subprocess.run(f"git update-ref {ref} {new_ref}", cwd=self.working_directory.wd, shell=True)
 
     def push_ref(self, refspec):
-        subprocess.run(f"git push origin {refspec}", cwd=self.working_directory.wd, shell=True)
+        subprocess.run(f"git push origin {refspec} --force", cwd=self.working_directory.wd, shell=True)
 
     def restore_files(self):
         subprocess.run("git restore --staged .", cwd=self.working_directory.wd, shell=True)

@@ -40,19 +40,23 @@ def require_signature(commit:Commit, validator:Commit, allowed_keys):
         return False, violation
 
 def validate_signature(allowed_pubkeys, signature, commit_object):
-
-    for pubkey in allowed_pubkeys:
-        if is_gpg(pubkey, signature):
+    if is_pgp_signature(signature):
+        for pubkey in allowed_pubkeys:
             if validate_gpg_signature(pubkey, signature, commit_object):
-                return True
-        else:
-            if validate_ssh_signature(pubkey, signature, commit_object):
-                return True
-            
+                return True  
+        return False
+    if is_ssh_signature(signature):
+        return validate_ssh_signature(allowed_pubkeys, signature, commit_object)
     return False
 
-def is_gpg(key, signature):
-    if "-----BEGIN PGP PUBLIC KEY BLOCK-----" in key and "-----BEGIN PGP SIGNATURE-----" in signature:
+def is_pgp_signature(signature):
+    if "-----BEGIN PGP SIGNATURE-----" in signature:
+        return True
+    else:
+        return False
+    
+def is_ssh_signature(signature):
+    if "-----BEGIN SSH SIGNATURE-----" in signature:
         return True
     else:
         return False
@@ -71,17 +75,20 @@ def validate_gpg_signature(pubkey, signature, commit_object):
     except:
         return False
 
-def validate_ssh_signature(allowed_signers, signature, commit_object):
+def validate_ssh_signature(pubkeys, signature, commit_object):
     signer_identities = []
+    allowed_signer_entries = []
     try:
-        for allowed_signer in allowed_signers.split("\n\n"):
-            signer_identities.append(allowed_signer.split()[0])
+        for pubkey in pubkeys:
+            signer_identity = pubkey.split()[-1]
+            allowed_signer_entries.append(signer_identity + " namespaces=\"git\" " + pubkey)
+            signer_identities.append(signer_identity)
     except:
         return False
-        
+    allowed_signers_content = "\n".join(allowed_signer_entries)
     os.mkdir("tmp")
     with open("tmp/allowed_signers", "w") as f:
-        f.write(allowed_signers)
+        f.write(allowed_signers_content)
     with open("tmp/sig", "w") as f:
         f.write(signature)
     with open("tmp/commit", "w") as f:
@@ -89,8 +96,7 @@ def validate_ssh_signature(allowed_signers, signature, commit_object):
 
     for signer_identity in signer_identities:
         p = subprocess.Popen(["ssh-keygen", "-Y", "verify", "-f", "tmp/allowed_signers", "-I", signer_identity, "-n", "git", "-s", "tmp/sig"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        stdout_data = p.communicate(input=commit_object.encode())
-        print(stdout_data)
+        p.communicate(input=commit_object.encode())
         rc = p.returncode
         if rc == 0:
             shutil.rmtree("tmp")

@@ -3,25 +3,41 @@ from gitbark.git.git import Git
 from gitbark import globals
 
 import subprocess
+from enum import Enum
 
-def approve_cmd(commit_hash, key_id):
+class KeyType(Enum):
+    GPG = 1
+    SSH = 2
+
+def approve_cmd(commit_hash, gpg_key_id="", ssh_key_path=""):
     git = Git()
     """ Creates a signature over a commit and stores it in ref (refs/signatures/{commit_hash}/{key_id})
 
     TODO: It should possible for the user to adds its key ID in a config file
     """
 
-    if not key_id:
+    if not gpg_key_id and not ssh_key_path:
         print("error: no key ID provided")
         return
     commit_hash = git.repo.revparse_single(commit_hash).id.__str__()  
     commit = Commit(commit_hash)
     commit_obj = commit.get_commit_object()
     approve = input(f"Are you sure you want to approve commit {commit_hash} (yes/no)? ")
+
+    key_type = KeyType.GPG if gpg_key_id else KeyType.SSH
+
     if approve == "yes":
-        signature = create_signature(commit_obj, key_id)
+        signature = ""
+        ref_name = ""
+        if key_type == KeyType.GPG:
+            signature = create_gpg_signature(commit_obj, gpg_key_id)
+            ref_name = f"refs/signatures/{commit_hash}/{gpg_key_id}"
+        else:
+            signature = create_ssh_signature(commit_obj, ssh_key_path)
+            ssh_key_id = get_ssh_key_id(ssh_key_path)
+            ref_name = f"refs/signatures/{commit_hash}/{ssh_key_id}"
+        
         blob_hash = create_signature_blob(signature)
-        ref_name = f"refs/signatures/{commit_hash}/{key_id}"
         git.update_ref(ref_name, blob_hash)
         git.push_ref(f'{ref_name}:{ref_name}')
     else:
@@ -29,14 +45,26 @@ def approve_cmd(commit_hash, key_id):
     return
 
 
-def create_signature(commit_obj, key_id):
+def create_gpg_signature(commit_obj, gpg_key_id):
     working_directory = globals.working_directory
-    gpg_process = subprocess.Popen(["gpg", "-u", key_id ,"--armor", "--detach-sign", "-"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, cwd=working_directory.wd)
+    gpg_process = subprocess.Popen(["gpg", "-u", gpg_key_id ,"--armor", "--detach-sign", "-"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, cwd=working_directory.wd)
     signature, _ = gpg_process.communicate(input=commit_obj)
     signature_str = signature.decode()
 
     return signature_str
 
+def create_ssh_signature(commit_obj, ssh_key_path):
+    working_directory = globals.working_directory
+    ssh_process = subprocess.Popen(["ssh-keygen", "-Y", "sign", "-f", ssh_key_path, "-n", "git"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, cwd=working_directory.wd)
+    signature, _ = ssh_process.communicate(input=commit_obj)
+    signature_str = signature.decode()
+
+    return signature_str
+
+def get_ssh_key_id(ssh_key_path):
+    output = subprocess.check_output(["ssh-keygen", "-l", "-f", ssh_key_path], text=True).rstrip()
+    key_id = output.split(":")[1].split()[0]
+    return key_id
 
 def create_signature_blob(signature):
     working_directory = globals.working_directory
