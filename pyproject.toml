@@ -1,8 +1,10 @@
+
 [tool.poetry]
 name = "Git bark"
 version = "0.1.0"
-description = ""
+description = "A git repository consistency verification framework"
 authors = ["Elias Bonnici <elias.bonnici@yubico.com>"]
+license = "APACHE-2.0"
 readme = "README.md"
 packages=[{include = "gitbark"}]
 
