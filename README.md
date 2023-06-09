@@ -126,7 +126,7 @@ a consistent and trustworthy state in relation to established rules.
 # Installation
 To install GitBark run the following command:
 
-`pip install "git+https://github.com/Yubico/e9g-tla-git-verification.git"`
+`pip install "git+https://github.com/YubicoLabs/gitbark.git"`
 
 # Usage
 
