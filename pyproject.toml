@@ -1,6 +1,6 @@
 
 [tool.poetry]
-name = "Git bark"
+name = "gitbark"
 version = "0.1.0"
 description = "A git repository consistency verification framework"
 authors = ["Elias Bonnici <elias.bonnici@yubico.com>"]
