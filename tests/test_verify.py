@@ -77,6 +77,7 @@ def test_pull_trusted_signature(env_signed_commits:Environment):
     
     pre_pull_head = env_signed_commits.local.get_head()
     _, stderr, exit_code = env_signed_commits.local.cmd("git", "pull", "origin", "main")
+    print(stderr)
     post_pull_head = env_signed_commits.local.get_head()
 
     assert(pre_pull_head != post_pull_head)

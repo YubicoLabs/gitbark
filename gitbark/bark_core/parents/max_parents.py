@@ -11,3 +11,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+from gitbark.git import Commit
+from gitbark.rule import Rule
+
+
+class MaxParents(Rule):
+    def validate(self, commit: Commit) -> bool:
+        threshold = self.args["threshold"]
+        parents = commit.get_parents()
+        if len(parents) < threshold:
+            self.add_violation(
+                f"Commit has {len(parents)} parent(s) but expected {threshold}"
+            )
+            return False
+        return True

@@ -12,182 +12,143 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
-import re
-from ..rules.commit_rules import validate_commit_rules
-from ..rules.branch_rules import validate_branch_rules, get_branch_rules
-from ..git.reference_update import ReferenceUpdate
-from ..git.git import Git
-from ..report import Report
-from ..cache import Cache
+from ..core import (
+    validate_commit_rules,
+    validate_branch_rules,
+    get_branch_rules,
+    BARK_RULES_BRANCH,
+)
+from ..objects import BranchRule
+from ..git import Commit
+from ..store import Project
 
-# Should be able to take as input branch, commit and boostrap
-def verify(all:bool=False, ref_update: ReferenceUpdate = None, bootstrap = None, from_install=False) -> Report: 
-    """ Verify Git repository
+from typing import Optional
+from dataclasses import dataclass
 
-    Note: This function takes ref_update as an optional parameter. This is to allow running the function from 
-    a reference-transaction hook and manually.
+
+@dataclass
+class BranchReport:
+    branch: str
+    head: Commit
+    violations: list[str]
+
+
+class Report:
+    def __init__(self) -> None:
+        self.log: list[BranchReport] = []
+
+    def is_repo_valid(self):
+        return len(self.log) == 0
+
+    def add_violations(self, branch: str, head: Commit):
+        branch_report = BranchReport(
+            branch=branch, head=head, violations=head.violations
+        )
+        self.log.append(branch_report)
+
+
+def verify_bark_rules(
+    project: Project,
+    report: Report,
+):
+    """Verifies the bark_rules branch."""
+    bootstrap = Commit(project.root_commit)
+    head = Commit(project.repo.revparse_single(BARK_RULES_BRANCH).id.__str__())
+    return verify_branch(
+        project=project,
+        branch=BARK_RULES_BRANCH,
+        head=head,
+        bootstrap=bootstrap,
+        report=report,
+    )
+
+
+def get_branch_rule(
+    project: Project, branch: str, rules: list[BranchRule]
+) -> Optional[BranchRule]:
+    for rule in rules:
+        if branch in rule.branches(project.repo):
+            return rule
+    return None
+
+
+def verify(
+    project: Project,
+    branch: Optional[str] = None,
+    head: Optional[Commit] = None,
+    bootstrap: Optional[Commit] = None,
+    all: bool = False,
+) -> Report:
+    """Verifies a branch or the entire repository.
+
+    If `all` is set, the entire repository will be validated. Otherwise `branch` will be validated.
     """
-
-    cache = Cache()
     report = Report()
 
-    if ref_update:
-        return verify_ref_update(ReferenceUpdate(ref_update), cache, report)
-    elif all:
-        return verify_all(cache, report, from_install=from_install)
-    else:
-        return verify_current_branch(cache, report, bootstrap)
-
-
-def verify_all(cache: Cache, report: Report, from_install:bool):
-    if not verify_branch("branch_rules", report, cache):
-        cache.dump()
+    if not verify_bark_rules(project, report):
         return report
-    
-    branch_rules = get_branch_rules()
 
+    branch_rules = get_branch_rules(project)
+
+    if all:
+        # Verify all branches matching branch_rules
+        verify_all(project, report, branch_rules)
+    elif branch and head:
+        # Verify target branch
+        branch_rule = get_branch_rule(project, branch, branch_rules)
+        if branch_rule:
+            bootstrap = Commit(branch_rule.bootstrap_commit)
+        if bootstrap:
+            verify_branch(
+                project=project,
+                branch=branch,
+                head=head,
+                bootstrap=bootstrap,
+                branch_rule=branch_rule,
+                report=report,
+            )
+
+    return report
+
+
+def verify_all(project: Project, report: Report, branch_rules: list[BranchRule]):
+    """Verify all branches matching branch_rules."""
     for rule in branch_rules:
-        for branch_name in rule["branches"]:
-            verify_branch(branch_name, report, cache, branch_rule=rule, from_install=from_install)
-    if ref_exists("refs/remotes/origin/branch_rules"):
-        print("remote branch_rules exists")
-        verify_branch("refs/remotes/origin/branch_rules", report, cache)
-    
-    cache.dump()
-    handle_exit(report)
+        for branch in rule.branches(project.repo):
+            head_hash = project.repo.revparse_single(branch).id.__str__()
+            head = Commit(head_hash)
+            bootstrap = Commit(rule.bootstrap_commit)
+            verify_branch(
+                project=project,
+                branch=branch,
+                head=head,
+                bootstrap=bootstrap,
+                report=report,
+                branch_rule=rule,
+            )
+
     return report
 
-def verify_ref_update(ref_update: ReferenceUpdate, cache: Cache, report: Report):
-    if ref_update.is_ref_deletion():
-        return report
-    
-    if not verify_branch("branch_rules", report, cache, ref_update=ref_update):
-        cache.dump()
-        return report
-    
-    branch_rules = get_branch_rules()
 
-    for rule in branch_rules:
-        pattern = rule["pattern"]
-        short_branch_name = ref_update.ref_name.split("/")
-        short_branch_name = short_branch_name[-1]
+def verify_branch(
+    project: Project,
+    branch: str,
+    head: Commit,
+    bootstrap: Commit,
+    report: Report,
+    branch_rule: Optional[BranchRule] = None,
+) -> bool:
+    """Verify branch against branch rules and commit rules."""
+    passes_br = True
+    passes_cr = True
 
-        if re.search(pattern, short_branch_name):
-            verify_branch(ref_update.ref_name, report, cache, ref_update=ref_update, branch_rule=rule)
-    
-    cache.dump()
-    handle_exit(report, ref_update)
-    return report
+    if branch_rule and not validate_branch_rules(project, head, branch, branch_rule):
+        passes_br = False
 
-def verify_current_branch(cache:Cache, report: Report, bootstrap):
-    git = Git()
+    if not validate_commit_rules(project, head, bootstrap, branch):
+        passes_cr = False
 
-    branch_name = git.repo.references["HEAD"].raw_target.decode()
-    if not bootstrap:
-        if not verify_branch("branch_rules", report, cache):
-            cache.dump()
-            return report
-    
-        branch_rules = get_branch_rules()
-        branch_name_tracked = False
-        for rule in branch_rules:
-            branch_names = rule["branches"]
-            if branch_name in branch_names:
-                branch_name_tracked = True
-                verify_branch(branch_name, report, cache, branch_rule=rule)
-                break
-        if not branch_name_tracked:
-            print(f"fatal: {branch_name} is not defined in branch_rules. Please specifiy bootstrap commit.")
-            sys.exit(1)
-    else:
-        verify_branch(branch_name, report, cache, bootstrap=bootstrap)
-    
-    cache.dump()
-    handle_exit(report)
-    return report
+    if not passes_br or not passes_cr:
+        report.add_violations(branch, head)
 
-def ref_exists(ref_name):
-    git = Git()
-    try:
-        if git.repo.references.__contains__(ref_name):
-            return True
-        else: 
-            return False
-    except:
-        return False
-
-
-def handle_exit(report:Report, ref_update: ReferenceUpdate = None):
-    report.print_report()
-    if ref_update:
-        exit_status = ref_update.exit_status
-        if exit_status == 1:
-            # If local changes are updated with remote
-            git = Git()
-            git.restore_files()
-        sys.exit(ref_update.exit_status)
-
-
-def verify_branch(branch_name, report:Report, cache:Cache, ref_update:ReferenceUpdate = None, branch_rule=None, bootstrap=None, from_install=False):
-    """Verify branch against branch rules and commit rules
-    
-    Branch rules and commit rules are dependent, meaning that if branch rules fails,
-    commit rules will never run.
-    """
-
-    # If ref_update and it matches branch_name, then validate_branch_rules
-    passes_branch_rules, branch_rule_violations = validate_branch_rules(ref_update, branch_name, branch_rule, cache)
-    # print("Branch rules eval")
-    if not passes_branch_rules:
-        branch_rule_violations_action(branch_rule_violations, branch_name, report, ref_update)
-        return False
-    # If ref_update and it matches branch_name, send ref_update to commit_rules, else not
-    passes_commit_rules, commit_rule_violations = validate_commit_rules(ref_update, branch_name, branch_rule, cache, from_install=from_install, boostrap=bootstrap)
-    if not passes_commit_rules:
-        commit_rule_violations_action(commit_rule_violations, branch_name, report, ref_update)
-        return False
-    # print("finished here")
-    return True
-
-def branch_rule_violations_action(violations, branch_name, report:Report, ref_update:ReferenceUpdate):
-    git = Git()
-    branch_head = ""
-    if ref_update and ref_update.ref_name == branch_name:
-        branch_head = ref_update.new_ref
-    else: 
-        branch_head = git.repo.revparse_single(branch_name)
-        branch_head = branch_head.id
-    if ref_update and ref_update.is_on_local_branch():
-        # If invalid update on local branch, it has to be resetted
-        ref_update.reset_update()
-        report.add_branch_reference_reset(branch_name, ref_update, branch_head)
-    report.add_branch_rule_violations(branch_name, violations, branch_head)
-
-
-def commit_rule_violations_action(violations, branch_name, report:Report, ref_update:ReferenceUpdate):
-    git = Git()
-    branch_head = ""
-    if ref_update and ref_update.ref_name == branch_name:
-        branch_head = ref_update.new_ref
-    else: 
-        branch_head = git.repo.revparse_single(branch_name)
-        branch_head = branch_head.id
-    if ref_update and ref_update.ref_name == branch_name and ref_update.is_on_local_branch():
-        ref_update.reset_update()
-        report.add_branch_reference_reset(branch_name, ref_update, branch_head)
-    report.add_commit_rule_violations(branch_name, violations, branch_head)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    return passes_br and passes_cr
