@@ -14,8 +14,7 @@
 
 from gitbark.git import Commit
 from gitbark.objects import CommitRuleData, CompositeCommitRuleData
-from gitbark.command import BarkCommand
-from gitbark._cli.util import CliFail
+from gitbark.cli.util import CliFail
 from gitbark.util import cmd
 
 from pygit2 import Blob
@@ -25,45 +24,53 @@ import sys
 import click
 
 
-class Command(BarkCommand):
-    def callback(self, commit_msg_file: str):
-        project = self.project
-        repo = project.repo
+@click.command()
+@click.pass_context
+@click.argument("commit_msg_file")
+def add_approvals(ctx, commit_msg_file):
+    """
+    Include approvals in a merge commit message.
 
-        # Check if we are merging
-        try:
-            merge_head_hash = repo.revparse_single("MERGE_HEAD").id.__str__()
-            merge_head = Commit(merge_head_hash)
-        except:
-            return
+    NOTE: This command should only be invoked as part of a 
+    prepare-commit-msg hook.
 
-        branch = repo.references["HEAD"].raw_target.decode()
-        branch_head_hash = repo.revparse_single(branch).id.__str__()
-        branch_head = Commit(branch_head_hash)
+    \b
+    COMMIT_MSG_FILE the file that contains the commit msg.
+    """
 
-        # Are we enforcing the require_approval rule?
-        approval_threshold = get_approval_threshold(branch_head)
-        if not approval_threshold:
-            return
+    project = ctx.obj["project"]
+    repo = project.repo
 
-        approvals = get_approvals(merge_head, project)
-        # print(approvals)
-        if len(approvals) < approval_threshold:
-            raise CliFail(
-                f"Found {len(approvals)} approvals for {merge_head.hash} but expected {approval_threshold}"
-            )
-
-        click.echo(f"Sufficient approvals found for {merge_head.hash}!")
-        sys.stdin = open("/dev/tty", "r")
-        click.confirm(
-            "Do you want to include them in the merge commmit message?",
-            abort=True,
-            err=True,
+    try:
+        merge_head_hash = repo.revparse_single("MERGE_HEAD").id.__str__()
+        merge_head = Commit(merge_head_hash)
+    except:
+        return
+    
+    head = Commit(repo.revparse_single("HEAD").id)
+    threshold = get_approval_threshold(head)
+    if not threshold:
+        return
+    
+    approvals = get_approvals(merge_head, project)
+    if len(approvals) < threshold:
+        raise CliFail(
+            f"Found {len(approvals)} approvals for {merge_head.hash} but expected {threshold}."
         )
-
-        write_approvals_to_commit_msg(
-            approvals, commit_msg_file, project.project_path, merge_head
-        )
+    
+    click.echo(f"Found {len(approvals)} approvals for {merge_head.hash}!")
+    sys.stdin = open("/dev/tty", "r")
+    click.confirm(
+        "Do you want to include them in the merge commit message?",
+        abort=True,
+        err=True
+    )
+    write_approvals_to_commit_msg(
+        approvals,
+        commit_msg_file,
+        project.project_path,
+        merge_head
+    )
 
 
 def write_approvals_to_commit_msg(

@@ -13,15 +13,14 @@
 # limitations under the License.
 
 from gitbark.git import Commit
-from gitbark.command import BarkCommand
-from gitbark._cli.util import click_prompt, CliFail
+from gitbark.cli.util import click_prompt, CliFail, click_callback
 
 from enum import Enum
 from pygit2 import Repository
 from dataclasses import dataclass
 import subprocess
 import os
-
+import click
 
 class KeyType(Enum):
     GPG = 1
@@ -34,43 +33,74 @@ class Key:
     type: KeyType
 
 
-class Command(BarkCommand):
-    def callback(
-        self,
-        commit: str,
-        gpg_key_id: str = "",
-        ssh_key_path: str = "",
-    ):
-        # If no key is provided, use the Git config
-        # If no key id found in config, prompt the user
-        project = self.project
-        repo = project.repo
+@click_callback()
+def click_parse_commit(ctx, param, val):
+    project = ctx.obj["project"]
+    repo = project.repo
 
-        if not gpg_key_id and not ssh_key_path:
-            key = get_key_from_git(repo)
+    try:
+        object = repo.revparse_single(val)
+        return Commit(object.id)
+    except Exception:
+        raise CliFail(f"{val} is not a valid commit object!")
 
-        if gpg_key_id:
-            key = Key(gpg_key_id, KeyType.GPG)
+@click.command()
+@click.pass_context
+@click.argument("commit", default="HEAD", callback=click_parse_commit)
+@click.option(
+    "--gpg-key-id",
+    type=str,
+    default="",
+    help="The GPG key ID."
+)
+@click.option(
+    "--ssh-key-path",
+    type=str,
+    default="",
+    help="The path to your private SSH key."
+)
+def approve(
+    ctx,
+    commit,
+    gpg_key_id,
+    ssh_key_path
+):
+    """Add your signature to a commit.
 
-        if ssh_key_path:
-            key = Key(ssh_key_path, KeyType.SSH)
+    This will create a signature over a given commit object, that 
+    is stored under `refs/signatures`.
+    
+    \b
+    COMMIT the commit to sign.
+    """
 
-        if not key:
-            identifier = click_prompt(
-                prompt="Enter key identifier (GPG key id or SSH key path)"
-            )
-            if is_hex(identifier):
-                key = Key(identifier, KeyType.GPG)
-            elif os.path.exists(identifier):
-                key = Key(identifier, KeyType.SSH)
-            else:
-                raise CliFail("Invalid key identifier!")
+    project = ctx.obj["project"]
+    repo = project.repo
 
-        commit_hash = repo.revparse_single(commit).id
-        sig, key_id = sign_commit(Commit(commit_hash), key)
+    if not gpg_key_id and not ssh_key_path:
+        key = get_key_from_git(repo)
 
-        blob_id = repo.create_blob(sig)
-        repo.references.create(f"refs/signatures/{commit_hash}/{key_id}", blob_id)
+    if gpg_key_id:
+        key = Key(gpg_key_id, KeyType.GPG)
+
+    if ssh_key_path:
+        key = Key(ssh_key_path, KeyType.SSH)
+
+    if not key:
+        identifier = click_prompt(
+            prompt="Enter key identifier (GPG key id or SSH key path)"
+        )
+        if is_hex(identifier):
+            key = Key(identifier, KeyType.GPG)
+        elif os.path.exists(identifier):
+            key = Key(identifier, KeyType.SSH)
+        else:
+            raise CliFail("Invalid key identifier!")
+
+    sig, key_id = sign_commit(commit, key)
+
+    blob_id = repo.create_blob(sig)
+    repo.references.create(f"refs/signatures/{commit.hash}/{key_id}", blob_id)
 
 
 def get_key_from_git(repo: Repository):

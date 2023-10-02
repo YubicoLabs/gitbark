@@ -20,7 +20,7 @@ rules:
 subcommands:
   - name: add-approvals
     description: Add approvals in merge commit message.
-    entrypoint: gitbark.bark_core.signatures.commands.add_approvals_cmd
+    entrypoint: gitbark.bark_core.signatures.commands.add_approvals_cmd:add_approvals
   - name: approve
     description: Add your signature to a commit.
-    entrypoint: gitbark.bark_core.signatures.commands.approve_cmd
+    entrypoint: gitbark.bark_core.signatures.commands.approve_cmd:approve

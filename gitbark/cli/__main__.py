@@ -18,7 +18,6 @@ from gitbark.commands.install import is_installed, install as install_cmd
 from gitbark.store import Store, Project
 from gitbark.util import cmd
 from gitbark.git import Commit, ReferenceUpdate, get_root
-from gitbark.command import _add_subcommands
 from gitbark import globals
 from .util import (
     BarkContextObject,
@@ -26,6 +25,7 @@ from .util import (
     verify_bootstrap,
     CliFail,
     handle_exit,
+    _add_subcommands
 )
 
 from typing import Optional

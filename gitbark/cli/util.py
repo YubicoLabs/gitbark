@@ -1,12 +1,13 @@
 from collections import OrderedDict
 from collections.abc import MutableMapping
 
-from gitbark.store import Project
+from gitbark.git import get_root
+from gitbark.store import Project, Store
 from gitbark.commands.verify import Report
 
+from pkg_resources import EntryPoint
 import functools
 import click
-import inspect
 import sys
 
 
@@ -72,25 +73,29 @@ def click_callback(invoke_on_missing=False):
     return wrap
 
 
-def options_from_class(cls):
-    def decorator(f):
-        for par in inspect.signature(cls.main).parameters.values():
-            if par.name not in ["self"]:
-                click.option("--" + par.name, required=True, type=par.annotation)(f)
-        return f
+def _add_subcommands(cli: click.Group):
+    toplevel = get_root()
+    store = Store()
+    project = store.get_project(toplevel)
+    if not project:
+        return
+    subcommands = project.env.get_subcommands()
 
-    return decorator
-
-
+    for subcommand in subcommands:
+        try:
+            ep_string = f"x={subcommand['entrypoint']}"
+            ep = EntryPoint.parse(ep_string)
+            cli.add_command(ep.resolve())
+        except Exception as e:
+            raise e
+            
 def verify_bootstrap(project: Project):
     repo = project.repo
     if not repo.lookup_branch("branch_rules"):
         raise CliFail('Error: The "branch_rules" branch has not been created!')
 
-
 def is_local_branch(branch: str):
     return branch.startswith("refs/heads")
-
 
 def handle_exit(report: Report):
     exit_status = 0
