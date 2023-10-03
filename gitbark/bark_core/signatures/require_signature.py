@@ -36,7 +36,7 @@ def require_signature(commit: Commit, authorized_pubkeys: list[Pubkey]):
 
     if not signature:
         # No signature
-        violation = f"Commit was not signed"
+        violation = "Commit was not signed"
         return False, violation
 
     if len(authorized_pubkeys) == 0:

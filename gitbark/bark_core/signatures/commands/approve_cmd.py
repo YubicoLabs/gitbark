@@ -22,6 +22,7 @@ import subprocess
 import os
 import click
 
+
 class KeyType(Enum):
     GPG = 1
     SSH = 2
@@ -44,32 +45,23 @@ def click_parse_commit(ctx, param, val):
     except Exception:
         raise CliFail(f"{val} is not a valid commit object!")
 
+
 @click.command()
 @click.pass_context
 @click.argument("commit", default="HEAD", callback=click_parse_commit)
-@click.option(
-    "--gpg-key-id",
-    type=str,
-    default="",
-    help="The GPG key ID."
-)
+@click.option("--gpg-key-id", type=str, default="", help="The GPG key ID.")
 @click.option(
     "--ssh-key-path",
     type=str,
     default="",
-    help="The path to your private SSH key."
+    help="The path to your private SSH key.",
 )
-def approve(
-    ctx,
-    commit,
-    gpg_key_id,
-    ssh_key_path
-):
+def approve(ctx, commit, gpg_key_id, ssh_key_path):
     """Add your signature to a commit.
 
-    This will create a signature over a given commit object, that 
+    This will create a signature over a given commit object, that
     is stored under `refs/signatures`.
-    
+
     \b
     COMMIT the commit to sign.
     """

@@ -21,7 +21,7 @@ from .objects import BranchRule, BarkRules
 BARK_RULES_BRANCH = "refs/heads/branch_rules"
 
 
-def find_nearest_valid_ancestors(
+def nearest_valid_ancestors(
     commit: Commit, cache: Cache, valid_ancestors=[]
 ) -> list[Commit]:
     """Return the nearest valid ancestors"""
@@ -31,14 +31,17 @@ def find_nearest_valid_ancestors(
         if value and value.valid:
             valid_ancestors.append(parent)
         else:
-            nearest_valid_ancestors = find_nearest_valid_ancestors(
-                parent, cache, valid_ancestors
-            )
-            valid_ancestors.extend(nearest_valid_ancestors)
+            _valid_ancestors = nearest_valid_ancestors(parent, cache, valid_ancestors)
+            valid_ancestors.extend(_valid_ancestors)
     return valid_ancestors
 
 
-def validate_rules(commit: Commit, validator: Commit, project: Project, branch: str):
+def validate_rules(
+    commit: Commit,
+    validator: Commit,
+    project: Project,
+    branch: str,
+):
     if branch == BARK_RULES_BRANCH:
         bark_rules = commit.get_bark_rules()
         project.load_rule_entrypoints(bark_rules)
@@ -77,8 +80,8 @@ def is_commit_valid(
 ) -> bool:
     cache = project.cache
 
-    if cache.has(commit.hash):
-        value = cache.get(commit.hash)
+    value = cache.get(commit.hash)
+    if value:
         commit.violations = value.violations
         return value.valid
 
@@ -92,10 +95,12 @@ def is_commit_valid(
         if is_commit_valid(parent, bootstrap, branch, project):
             validators.add(parent)
         else:
-            for validator in find_nearest_valid_ancestors(parent, project.cache):
+            for validator in nearest_valid_ancestors(parent, project.cache):
                 validators.add(validator)
 
-    if not all(validate_rules(commit, validator, project, branch) for validator in validators):
+    if not all(
+        validate_rules(commit, validator, project, branch) for validator in validators
+    ):
         cache.set(commit.hash, CacheEntry(False, commit.violations))
         return False
     else:
@@ -109,15 +114,15 @@ def is_commit_valid_iterative(
 ) -> bool:
     cache = project.cache
 
+    value = cache.get(commit.hash)
+    if value:
+        commit.violations = value.violations
+        return value.valid
+
     if commit == bootstrap:
         cache.set(commit.hash, CacheEntry(True, commit.violations))
         update_modules(commit, branch, project)
         return True
-
-    if cache.has(commit.hash):
-        value = cache.get(commit.hash)
-        commit.violations = value.violations
-        return value.valid
 
     commit_to_children = get_children_map(commit)
 
@@ -141,22 +146,22 @@ def is_commit_valid_iterative(
                 validators = []
                 visited_validators = set()
                 for parent in parents:
-                    if cache.has(parent.hash):
-                        value = cache.get(parent.hash)
+                    value = cache.get(parent.hash)
+                    if value:
                         if value.valid:
                             validators.append(parent)
                             visited_validators.add(parent.hash)
                         else:
-                            nearest_validator = find_nearest_valid_ancestors(
+                            nearest_validators = nearest_valid_ancestors(
                                 parent, project.cache
                             )
-                            for validator in nearest_validator:
-                                if not validator.hash in visited_validators:
+                            for validator in nearest_validators:
+                                if validator.hash not in visited_validators:
                                     validators.append(validator)
                                     visited_validators.add(validator.hash)
 
                 if not all(
-                    validate_rules(child, validator, project)
+                    validate_rules(child, validator, project, branch)
                     for validator in validators
                 ):
                     cache.set(child.hash, CacheEntry(False, child.violations))
@@ -166,7 +171,8 @@ def is_commit_valid_iterative(
                 validated.add(child.hash)
                 queue.append(child)
 
-    return cache.get(commit.hash).valid
+    value = cache.get(commit.hash)
+    return False if not value else value.valid
 
 
 def update_modules(commit: Commit, branch: str, project: Project):
@@ -213,10 +219,13 @@ def get_bark_rules(project: Project) -> BarkRules:
 
     return branch_rules_head.get_bark_rules()
 
+
 def is_descendant(prev: Commit, new: Commit):
     """Checks that the current tip is a descendant of the old tip"""
 
-    _, exit_status = cmd("git", "merge-base", "--is-ancestor", prev.hash, new.hash, check=False)
+    _, exit_status = cmd(
+        "git", "merge-base", "--is-ancestor", prev.hash, new.hash, check=False
+    )
 
     if exit_status == 0:
         return True

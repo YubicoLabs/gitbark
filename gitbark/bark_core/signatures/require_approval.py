@@ -38,17 +38,18 @@ class RequireApproval(Rule):
 
 def require_approval(commit: Commit, threshold: int, authorized_pubkeys: list[Pubkey]):
     """
-    Verifies that the parent from the merged branch contains a threshold of approvals. These approvals are detached signatures
-    included in the merge commit message.
+    Verifies that the parent from the merged branch contains a threshold of approvals.
+    These approvals are detached signatures included in the merge commit message.
 
-    Note: The second parent of a merge request will always be the parent of the merged branch.
+    Note: The second parent of a merge request will always be the parent
+    of the merged branch.
     """
     parents = commit.get_parents()
     violation = ""
 
     if len(parents) <= 1:
         # Require approval can only be applied on pull requests
-        violation = f"Commit does not originate from a pull request"
+        violation = "Commit does not originate from a pull request"
         return False, violation
 
     # The merge head

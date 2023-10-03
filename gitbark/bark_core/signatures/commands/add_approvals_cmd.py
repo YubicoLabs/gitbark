@@ -22,6 +22,9 @@ from typing import Union
 import re
 import sys
 import click
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 @click.command()
@@ -31,7 +34,7 @@ def add_approvals(ctx, commit_msg_file):
     """
     Include approvals in a merge commit message.
 
-    NOTE: This command should only be invoked as part of a 
+    NOTE: This command should only be invoked as part of a
     prepare-commit-msg hook.
 
     \b
@@ -44,37 +47,38 @@ def add_approvals(ctx, commit_msg_file):
     try:
         merge_head_hash = repo.revparse_single("MERGE_HEAD").id.__str__()
         merge_head = Commit(merge_head_hash)
-    except:
+    except Exception:
         return
-    
+
     head = Commit(repo.revparse_single("HEAD").id)
     threshold = get_approval_threshold(head)
     if not threshold:
         return
-    
+
     approvals = get_approvals(merge_head, project)
     if len(approvals) < threshold:
         raise CliFail(
-            f"Found {len(approvals)} approvals for {merge_head.hash} but expected {threshold}."
+            f"Found {len(approvals)} approvals for {merge_head.hash} "
+            "but expected {threshold}."
         )
-    
+
     click.echo(f"Found {len(approvals)} approvals for {merge_head.hash}!")
     sys.stdin = open("/dev/tty", "r")
     click.confirm(
         "Do you want to include them in the merge commit message?",
         abort=True,
-        err=True
+        err=True,
     )
     write_approvals_to_commit_msg(
-        approvals,
-        commit_msg_file,
-        project.project_path,
-        merge_head
+        approvals, commit_msg_file, project.project_path, merge_head
     )
 
 
 def write_approvals_to_commit_msg(
-    approvals: list[str], commit_msg_file: str, project_path: str, merge_head: Commit
+    approvals: list[str],
+    commit_msg_file: str,
+    project_path: str,
+    merge_head: Commit,
 ):
     with open(f"{project_path}/{commit_msg_file}", "w") as f:
         f.write("\n" * 2)
@@ -101,8 +105,8 @@ def get_approvals(merge_head: Commit, project):
     # Try to fetch approvals from remote
     try:
         cmd("git", "origin", "fetch", "refs/signatures/*:refs/signatures/*")
-    except:
-        pass
+    except Exception:
+        logger.error("Failed to fetch from 'refs/signatures'")
 
     references = repo.references.iterator()
     approvals = []

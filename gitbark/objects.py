@@ -135,7 +135,7 @@ class BarkRules:
     def parse(cls, bark_rules: dict) -> "BarkRules":
         try:
             branches = [BranchRule.parse(rule) for rule in bark_rules["branches"]]
-            if not "modules" in bark_rules:
+            if "modules" not in bark_rules:
                 modules = []
             else:
                 modules = [BarkModule.parse(module) for module in bark_rules["modules"]]

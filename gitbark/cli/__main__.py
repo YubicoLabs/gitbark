@@ -25,7 +25,7 @@ from .util import (
     CliFail,
     handle_exit,
     get_root,
-    _add_subcommands
+    _add_subcommands,
 )
 
 from typing import Optional
@@ -79,7 +79,6 @@ def install(ctx):
 
     if report.is_repo_valid():
         click.echo("Installed GitBark successfully!")
-        
 
     handle_exit(report)
 
@@ -168,7 +167,6 @@ def verify(ctx, branch, ref_update, all, bootstrap):
     if not is_installed(project):
         click.echo('Error: Bark is not installed! Run "bark install" first!')
         exit(1)
-    # store = ctx.obj["store"]
 
     head = None
     if not all:
@@ -184,8 +182,6 @@ def verify(ctx, branch, ref_update, all, bootstrap):
             click.echo("Repository is in valid state!")
         elif not ref_update:
             click.echo(f"{branch} is in a valid state!")
-
-        # store.update_project(project)
 
     handle_exit(report)
 

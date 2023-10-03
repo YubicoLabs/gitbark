@@ -50,7 +50,8 @@ def validate_invalid_parents(
     invalid_parents = []
 
     for parent in parents:
-        if not cache.get(parent.hash).valid:
+        value = cache.get(parent.hash)
+        if value and not value.valid:
             invalid_parents.append(parent)
 
     if len(invalid_parents) == 0:
@@ -59,6 +60,6 @@ def validate_invalid_parents(
     invalid_parent_hashes = [parent.hash for parent in invalid_parents]
     commit_msg = commit.get_commit_message()
     for hash in invalid_parent_hashes:
-        if not hash in commit_msg:
+        if hash not in commit_msg:
             return False
     return True

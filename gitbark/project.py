@@ -33,13 +33,15 @@ class CacheEntry:
         self.valid = valid
         self.violations = violations
 
+
 class Cache:
     def __init__(self, file: str) -> None:
         self.file = file
         try:
-            self.cache = self.load()
+            self.cache: dict[str, CacheEntry] = self.load()
         except Exception as e:
             raise e
+
     def get(self, key: str) -> Optional[CacheEntry]:
         value = self.cache.get(key)
         return value
@@ -59,21 +61,21 @@ class Cache:
                 return pickle.load(f)
         return {}
 
-    def dump(self) -> bytes:
+    def dump(self) -> None:
         with open(self.file, "wb") as f:
             pickle.dump(self.cache, f)
 
 
-
 class PROJECT_FILES(StrEnum):
-    CACHE = 'cache.pickle'
-    BOOTSTRAP = 'bootstrap'
+    CACHE = "cache.pickle"
+    BOOTSTRAP = "bootstrap"
     DB = "db.db"
 
 
-BARK_DIRECTORY = 'bark'
-ENV_DIRECTORY = 'env'
-BARK_MODULES_DIRECTORY = 'bark_modules'
+BARK_DIRECTORY = "bark"
+ENV_DIRECTORY = "env"
+BARK_MODULES_DIRECTORY = "bark_modules"
+
 
 class Project:
     def __init__(self, path: str) -> None:
@@ -84,7 +86,7 @@ class Project:
 
         if not os.path.exists(self.bark_directory):
             os.makedirs(self.bark_directory, exist_ok=True)
-        
+
         if not os.path.exists(self.env_path):
             os.makedirs(self.env_path, exist_ok=True)
             cmd("virtualenv", self.env_path, cwd=self.path)
@@ -95,7 +97,7 @@ class Project:
         self.cache = self.get_cache()
         self.bootstrap = self.get_bootstrap()
         self.repo = Repository(self.path)
-    
+
     @contextlib.contextmanager
     def connect_db(
         self, db_path: str | None = None
@@ -137,8 +139,8 @@ class Project:
         cmd("git", "clone", bark_module.repo, modules_path)
         with self.connect_db() as db:
             db.execute(
-                "INSERT INTO bark_modules (repo, path) VALUES (?, ?)", 
-                [bark_module.repo, modules_path]
+                "INSERT INTO bark_modules (repo, path) VALUES (?, ?)",
+                [bark_module.repo, modules_path],
             )
 
     def install_bark_module(self, bark_module: BarkModule) -> None:
@@ -146,11 +148,10 @@ class Project:
         if not bark_module_path:
             self.create_bark_module(bark_module)
             bark_module_path = self.get_bark_module_path(bark_module)
-        
+
         pip_path = os.path.join(self.env_path, "bin", "pip")
         cmd(pip_path, "install", f"git+file:///{bark_module_path}@{bark_module.rev}")
-        
-    
+
     def load_rule_entrypoints(self, bark_rules: BarkRules) -> None:
         entrypoints = {}
 
@@ -158,7 +159,7 @@ class Project:
         for rule in get_bark_core_rules():
             id, entrypoint = rule["id"], rule["entrypoint"]
             entrypoints[id] = entrypoint
-        
+
         for module in bark_rules.modules:
             bark_module = self.get_bark_module_config(module)
             rules = []
@@ -170,7 +171,7 @@ class Project:
 
         self.rule_entrypoints = entrypoints
 
-    def get_subcommand_entrypoints(self, bark_rules: BarkRules) -> str:
+    def get_subcommand_entrypoints(self, bark_rules: BarkRules) -> list[str]:
         entrypoints = []
 
         # Add bark_core subcommands
@@ -188,28 +189,33 @@ class Project:
 
     def get_bark_module_config(self, bark_module: BarkModule):
         repo_path = self.get_bark_module_path(bark_module)
-        bark_module, _ =  cmd("git", "cat-file", "-p", f"{bark_module.rev}:bark_module.yaml", cwd=repo_path)
+        bark_module, _ = cmd(
+            "git",
+            "cat-file",
+            "-p",
+            f"{bark_module.rev}:bark_module.yaml",
+            cwd=repo_path,
+        )
         return yaml.safe_load(bark_module)
-    
+
     def get_bark_module_path(self, bark_module: BarkModule) -> str:
         with self.connect_db() as db:
             bark_module_path = db.execute(
-                "SELECT path FROM bark_modules WHERE repo = ?",
-                [bark_module.repo]
+                "SELECT path FROM bark_modules WHERE repo = ?", [bark_module.repo]
             ).fetchone()
             return bark_module_path
 
     def get_cache(self) -> Cache:
         cache_file = os.path.join(self.bark_directory, PROJECT_FILES.CACHE)
         return Cache(cache_file)
-    
+
     def get_bootstrap(self) -> str:
         bootstrap_file = os.path.join(self.bark_directory, PROJECT_FILES.BOOTSTRAP)
         if os.path.exists(bootstrap_file):
             with open(bootstrap_file, "r") as f:
                 return f.read()
         return ""
-    
+
     def save_bootstrap(self) -> None:
         bootstrap_file = os.path.join(self.bark_directory, PROJECT_FILES.BOOTSTRAP)
         with open(bootstrap_file, "w") as f:
@@ -222,7 +228,6 @@ class Project:
         self.save_bootstrap()
         self.save_cache()
 
-    
 
 def _get_bark_core_config():
     bark_module = pkg_resources.resource_string(__name__, "bark_core/bark_module.yaml")
@@ -235,7 +240,3 @@ def get_bark_core_rules():
 
 def get_bark_core_subcommands():
     return _get_bark_core_config()["subcommands"]
-
-
-
-

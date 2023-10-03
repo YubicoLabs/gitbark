@@ -18,7 +18,7 @@ from .project import Cache, Project
 
 from abc import ABC, abstractmethod
 from typing import Union
-import importlib        
+import importlib
 import inspect
 
 

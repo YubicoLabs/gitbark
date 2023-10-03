@@ -31,8 +31,11 @@ class Commit:
         self.repo = globals.repo
         self.hash = hash
         self.object = self.repo.get(hash)
-        self.parents = None
         self.violations: list[str] = []
+
+    @property
+    def parents(self):
+        return self.get_parents()
 
     def __eq__(self, other) -> bool:
         """Perform equality check on two commits based on their hashes"""
@@ -61,7 +64,6 @@ class Commit:
         parents = [
             Commit(parent_hash.__str__()) for parent_hash in self.object.parent_ids
         ]
-        self.parents = parents
         return parents
 
     def get_commit_rules(self):
@@ -99,7 +101,8 @@ class Commit:
         return pubkeys
 
     def get_files_modified(self, validator):
-        """Return the set of files changed between validator commit and current commit"""
+        """Return the set of files changed between validator commit
+        and current commit"""
         diff = self.repo.diff(self.hash, validator.hash)
         files = []
         for delta in diff.deltas:

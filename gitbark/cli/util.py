@@ -77,6 +77,7 @@ def click_callback(invoke_on_missing=False):
 
     return wrap
 
+
 def get_root() -> str:
     try:
         root = os.path.abspath(cmd("git", "rev-parse", "--show-toplevel")[0])
@@ -85,8 +86,9 @@ def get_root() -> str:
             "Failed to find Git repository! Make sure "
             "you are not inside the .git directory."
         )
-    
+
     return root
+
 
 def _add_subcommands(group: click.Group):
     try:
@@ -95,9 +97,9 @@ def _add_subcommands(group: click.Group):
         globals.init(toplevel)
         if not is_installed(project):
             return
-    except:
+    except Exception:
         return
-    
+
     bark_rules = get_bark_rules(project)
     subcommand_entrypoints = project.get_subcommand_entrypoints(bark_rules)
     for entrypoint in subcommand_entrypoints:
@@ -107,23 +109,25 @@ def _add_subcommands(group: click.Group):
             group.add_command(ep.resolve())
         except Exception as e:
             raise e
-        
-            
+
+
 def verify_bootstrap(project: Project):
     repo = project.repo
     if not repo.lookup_branch("branch_rules"):
         raise CliFail('Error: The "branch_rules" branch has not been created!')
 
+
 def is_local_branch(branch: str):
     return branch.startswith("refs/heads")
+
 
 def restore_incoming_changes():
     try:
         cmd("git", "restore", "--staged", ".")
         cmd("git", "restore", ".")
-    except:
+    except Exception:
         pass
-    
+
 
 def handle_exit(report: Report):
     exit_status = 0

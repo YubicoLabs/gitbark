@@ -18,12 +18,12 @@ class Pubkey:
             key, _ = PGPKey.from_blob(pubkey)
             fingerprint = str(key.fingerprint)
             return key, fingerprint
-        except:
+        except Exception:
             pass
         try:
             key = PKey(data=pubkey)
             fingerprint = key.fingerprint.split(":")[1]
-        except:
+        except Exception:
             pass
         raise ValueError("Could not parse public key!")
 
@@ -45,7 +45,7 @@ def verify_pgp_signature(pubkey: PGPKey, signature: Any, subject: Any) -> bool:
             return True
         else:
             return False
-    except:
+    except Exception:
         return False
 
 

@@ -81,7 +81,8 @@ def verify(
 ) -> Report:
     """Verifies a branch or the entire repository.
 
-    If `all` is set, the entire repository will be validated. Otherwise `branch` will be validated.
+    If `all` is set, the entire repository will be validated. Otherwise
+    `branch` will be validated.
     """
     report = Report()
 
