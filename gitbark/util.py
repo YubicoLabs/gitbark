@@ -16,11 +16,14 @@ import subprocess
 from typing import Any
 
 
-def cmd(*cmd: str, **kwargs: Any):
+def cmd(*cmd: str, check: bool = True, **kwargs: Any):
     try:
         result = subprocess.run(
             cmd, capture_output=True, text=True, check=True, **kwargs
         )
         return result.stdout.strip(), result.returncode
     except subprocess.CalledProcessError as e:
-        return e.stdout, e.returncode
+        if check:
+            raise e
+        else:
+            return e.stdout, e.returncode

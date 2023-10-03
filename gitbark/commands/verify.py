@@ -92,7 +92,6 @@ def verify(
     project.load_rule_entrypoints(bark_rules)
     branch_rules = bark_rules.branches
 
-
     if all:
         # Verify all branches matching branch_rules
         verify_all(project, report, branch_rules)
@@ -142,16 +141,12 @@ def verify_branch(
     branch_rule: Optional[BranchRule] = None,
 ) -> bool:
     """Verify branch against branch rules and commit rules."""
-    passes_br = True
-    passes_cr = True
-
     if branch_rule and not validate_branch_rules(project, head, branch, branch_rule):
-        passes_br = False
+        report.add_violations(branch, head)
+        return False
 
     if not validate_commit_rules(project, head, bootstrap, branch):
-        passes_cr = False
-
-    if not passes_br or not passes_cr:
         report.add_violations(branch, head)
+        return False
 
-    return passes_br and passes_cr
+    return True

@@ -216,7 +216,7 @@ def get_bark_rules(project: Project) -> BarkRules:
 def is_descendant(prev: Commit, new: Commit):
     """Checks that the current tip is a descendant of the old tip"""
 
-    _, exit_status = cmd("git", "merge-base", "--is-ancestor", prev.hash, new.hash)
+    _, exit_status = cmd("git", "merge-base", "--is-ancestor", prev.hash, new.hash, check=False)
 
     if exit_status == 0:
         return True
@@ -227,23 +227,14 @@ def is_descendant(prev: Commit, new: Commit):
 def validate_branch_rules(
     project: Project, head: Commit, branch: str, branch_rule: BranchRule
 ) -> bool:
-
-    cache = project.cache
-
-    if cache.has(head.hash):
-        value = cache.get(head.hash)
-        return value.valid, value.violations
-
     # Validate branch_rules
     # TODO: make this part more modular
     passes_rules = True
-
     if branch_rule.fast_forward_only:
         prev_head_hash = project.repo.revparse_single(branch).id.__str__()
         prev_head = Commit(prev_head_hash)
         if not is_descendant(prev_head, head):
             head.add_rule_violation(f"Commit is not a descendant of {prev_head.hash}")
-            cache.set(head.hash, CacheEntry(False, head.violations))
             passes_rules = False
 
     return passes_rules

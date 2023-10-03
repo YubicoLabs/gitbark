@@ -12,30 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .util import cmd
 from .objects import CommitRulesData, BarkRules
 from gitbark import globals
 
 from dataclasses import dataclass
 import yaml
 import re
-import os
-
-
-def get_root() -> str:
-    try:
-        root = os.path.abspath(cmd("git", "rev-parse", "--show-toplevel")[0])
-        inside_git_dir = cmd("git", "rev-parse", "--is-inside-git-dir")[0]
-    except Exception as e:
-        raise e
-
-    if inside_git_dir != "false":
-        raise RuntimeError(
-            "Failed to find Git repository! Make sure "
-            "you are not inside the .git directory."
-        )
-
-    return root
 
 
 class Commit:

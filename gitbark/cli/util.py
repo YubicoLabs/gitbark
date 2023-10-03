@@ -1,17 +1,18 @@
 from collections import OrderedDict
 from collections.abc import MutableMapping
 
-from gitbark.git import get_root
 from gitbark.core import get_bark_rules
 from gitbark.project import Project
 from gitbark.commands.verify import Report
+from gitbark.util import cmd
 from gitbark import globals
 
+
 from pkg_resources import EntryPoint
-from pygit2 import Repository
 import functools
 import click
 import sys
+import os
 
 
 class BarkContextObject(MutableMapping):
@@ -75,9 +76,22 @@ def click_callback(invoke_on_missing=False):
 
     return wrap
 
+def get_root() -> str:
+    try:
+        root = os.path.abspath(cmd("git", "rev-parse", "--show-toplevel")[0])
+    except Exception:
+        raise CliFail(
+            "Failed to find Git repository! Make sure "
+            "you are not inside the .git directory."
+        )
+    
+    return root
 
-def _add_subcommands(cli: click.Group):
-    toplevel = get_root()
+def _add_subcommands(group: click.Group):
+    try:
+        toplevel = get_root()
+    except:
+        return
     project = Project(toplevel)
     globals.init(toplevel)
     bark_rules = get_bark_rules(project)
@@ -86,7 +100,7 @@ def _add_subcommands(cli: click.Group):
         try:
             ep_string = f"x={entrypoint}"
             ep = EntryPoint.parse(ep_string)
-            cli.add_command(ep.resolve())
+            group.add_command(ep.resolve())
         except Exception as e:
             raise e
         
@@ -99,17 +113,25 @@ def verify_bootstrap(project: Project):
 def is_local_branch(branch: str):
     return branch.startswith("refs/heads")
 
+def restore_incoming_changes():
+    try:
+        cmd("git", "restore", "--staged", ".")
+        cmd("git", "restore", ".")
+    except:
+        pass
+    
+
 def handle_exit(report: Report):
     exit_status = 0
     for branch_report in report.log:
         head = branch_report.head
         branch = branch_report.branch
+        error_type = "WARNING"
         if is_local_branch(branch):
             exit_status = 1
-        else:
-            exit_status = 2
-
-        click.echo(f"ERROR: Commit {head.hash} on {branch} is invalid!")
+            error_type = "ERROR"
+            restore_incoming_changes()
+        click.echo(f"{error_type}: Commit {head.hash} on {branch} is invalid!")
         for violation in head.violations:
             click.echo("  {0} {1}".format("-", violation))
     exit(exit_status)

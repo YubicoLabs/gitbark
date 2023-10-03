@@ -17,13 +17,14 @@ from gitbark.commands.install import is_installed, install as install_cmd
 
 from gitbark.project import Project
 from gitbark.util import cmd
-from gitbark.git import Commit, ReferenceUpdate, get_root
+from gitbark.git import Commit, ReferenceUpdate
 from .util import (
     BarkContextObject,
     click_callback,
     verify_bootstrap,
     CliFail,
     handle_exit,
+    get_root,
     _add_subcommands
 )
 
@@ -46,7 +47,12 @@ def cli(ctx):
     ctx.obj["project"] = project
 
 
-_add_subcommands(cli)
+@cli.group()
+@click.pass_context
+def subcommands(ctx):
+    """Run subcommands from Bark Modules."""
+
+_add_subcommands(subcommands)
 
 
 @cli.command()
