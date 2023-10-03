@@ -12,146 +12,101 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ..commands.verify import verify
-from ..git.git import Git
-from gitbark import globals
-import pkg_resources
+from .verify import verify, Report
+from ..project import Project
+from ..util import cmd
 
+import pkg_resources
 import os
 import stat
-import sys
 
-def install(hooks=True):
+
+def install(project: Project) -> Report:
     """
     Installs GitBark
     """
-    
-    if is_installed():
-        print("Bark already installed!")
-        return
-    
-    verify_bootstrap()
 
-    if hooks:
-        install_hooks()
+    # Verify the branch rules branch
+    report = verify(project, all=True)
 
-    print("Installed bark successfully!")
+    if not report.is_repo_valid():
+        # Do something
+        return report
 
-def verify_bootstrap():
-    git = Git()
+    # If everything goes well, install hooks
+    if not hooks_installed(project):
+        install_hooks(project)
 
-    branch_rules_head_hash = git.repo.revparse_single("branch_rules").id.__str__()
-    branch_rules_root_hash, _  = git.cmd("git", "rev-list", "--max-parents=0", branch_rules_head_hash)
+    return report
 
-    if not bootstrap_verified(branch_rules_root_hash):
-        print("The bootstrap commit of the branch_rules branch has not been verified")
-        print(f"The SHA hash of the root commit is {branch_rules_root_hash}.")
-        answer = input("Are you sure you want to continue with this as the bootstrap commit (yes/no)? ")
 
-        if answer == "yes":
-            save_bootstrap(branch_rules_root_hash)
-            print("Verifying repository....")
-            report = verify(all=True, from_install=True)
+def bootstrap_verified(project: Project) -> bool:
+    try:
+        root_commit = cmd("git", "rev-list", "--max-parents=0", "branch_rules")[0]
+    except Exception:
+        root_commit = ""
+    return root_commit == project.bootstrap
 
-            if not report.is_repo_valid():
-                clear_bootstrap()
-                print("Aborting installation!")
-                sys.exit(1)
-        else:
-            sys.exit(0)
-            
 
-def bootstrap_verified(bootstrap_hash):
-    working_directory = globals.working_directory
-    bootstrap_commit_path = f"{working_directory.wd}/.git/gitbark_data/root_commit"
-    if os.path.exists(bootstrap_commit_path):
-        with open(bootstrap_commit_path, 'r') as f:
-            commit_hash = f.read()
-            if commit_hash == bootstrap_hash:
-                return True
-            else:
-                return False
+def is_installed(project: Project) -> bool:
+    return bootstrap_verified(project) and hooks_installed(project)
 
-def save_bootstrap(bootstrap_hash):
-    working_directory = globals.working_directory
-    gitbark_path = f"{working_directory.wd}/.git/gitbark_data"
-    bootstrap_commit_path = f"{gitbark_path}/root_commit"
-    if not os.path.exists(gitbark_path):
-        os.mkdir(gitbark_path)
-    
-    with open(bootstrap_commit_path, 'w') as f:
-        f.write(bootstrap_hash)
 
-def clear_bootstrap():
-    working_directory = globals.working_directory
-    gitbark_path = f"{working_directory.wd}/.git/gitbark_data"
-    bootstrap_commit_path = f"{gitbark_path}/root_commit"
-    with open(bootstrap_commit_path, 'r+') as f:
-        f.truncate(0)
-
-def install_hooks():
+def install_hooks(project: Project):
     print("Installing hooks....")
-    reference_transaction_data = pkg_resources.resource_string(__name__, 'hooks/reference_transaction')
-    prepare_commit_msg_data = pkg_resources.resource_string(__name__, 'hooks/prepare-commit-msg')
+    reference_transaction_data = pkg_resources.resource_string(
+        __name__, "hooks/reference_transaction"
+    )
+    prepare_commit_msg_data = pkg_resources.resource_string(
+        __name__, "hooks/prepare-commit-msg"
+    )
 
-    working_directory = globals.working_directory
-    hooks_path = f"{working_directory.wd}/.git/hooks"
+    hooks_path = f"{project.path}/.git/hooks"
     reference_transaction_path = f"{hooks_path}/reference-transaction"
     prepare_commit_msg_path = f"{hooks_path}/prepare-commit-msg"
 
-    with open(reference_transaction_path, 'wb') as f:
+    with open(reference_transaction_path, "wb") as f:
         f.write(reference_transaction_data)
     make_executable(reference_transaction_path)
 
-    with open(prepare_commit_msg_path, 'wb') as f:
+    with open(prepare_commit_msg_path, "wb") as f:
         f.write(prepare_commit_msg_data)
     make_executable(prepare_commit_msg_path)
 
     print(f"Hooks installed in {hooks_path}")
 
 
-
-def make_executable(path):
+def make_executable(path: str):
     current_permissions = os.stat(path).st_mode
-    
+
     new_permissions = current_permissions | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH
 
     os.chmod(path, new_permissions)
 
-def hooks_installed():
-    reference_transaction_data = pkg_resources.resource_string(__name__, 'hooks/reference_transaction').decode()
-    prepare_commit_msg_data = pkg_resources.resource_string(__name__, 'hooks/prepare-commit-msg').decode()
 
-    working_directory = globals.working_directory
-    hooks_path = f"{working_directory.wd}/.git/hooks"
+def hooks_installed(project: Project):
+    reference_transaction_data = pkg_resources.resource_string(
+        __name__, "hooks/reference_transaction"
+    ).decode()
+    prepare_commit_msg_data = pkg_resources.resource_string(
+        __name__, "hooks/prepare-commit-msg"
+    ).decode()
+
+    hooks_path = f"{project.path}/.git/hooks"
     reference_transaction_path = f"{hooks_path}/reference-transaction"
     prepare_commit_msg_path = f"{hooks_path}/prepare-commit-msg"
 
-    if not os.path.exists(reference_transaction_path) or not os.path.exists(prepare_commit_msg_path):
+    if not os.path.exists(reference_transaction_path) or not os.path.exists(
+        prepare_commit_msg_path
+    ):
         return False
-    
+
     with open(reference_transaction_path, "r") as f:
         if not f.read() == reference_transaction_data:
             return False
-    
+
     with open(prepare_commit_msg_path, "r") as f:
         if not f.read() == prepare_commit_msg_data:
             return False
-        
+
     return True
-
-def is_installed():
-    git = Git()
-    branch_rules_head_hash = git.repo.revparse_single("branch_rules").id.__str__()
-    branch_rules_root_hash, _  = git.cmd("git", "rev-list", "--max-parents=0", branch_rules_head_hash)
-
-    if bootstrap_verified(branch_rules_root_hash) and hooks_installed():
-        return True
-    else:
-        return False
-
-
-
-    
-
-

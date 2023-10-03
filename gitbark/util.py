@@ -11,3 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+import subprocess
+from typing import Any
+
+
+def cmd(*cmd: str, check: bool = True, **kwargs: Any):
+    try:
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, check=True, **kwargs
+        )
+        return result.stdout.strip(), result.returncode
+    except subprocess.CalledProcessError as e:
+        if check:
+            raise e
+        else:
+            return e.stdout, e.returncode

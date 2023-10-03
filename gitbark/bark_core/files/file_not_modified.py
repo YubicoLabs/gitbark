@@ -12,29 +12,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from gitbark.git.commit import Commit
-from gitbark.cache import Cache
-from gitbark.rules.rule import Rule
+from gitbark.git import Commit
+from gitbark.rule import Rule
 
 import re
 
 
-class Rule(Rule):
-    def validate(self, commit: Commit, validator: Commit = None, cache: Cache = None) -> bool:
+class FileNotModified(Rule):
+    def validate(self, commit: Commit) -> bool:
         pattern = self.args["pattern"]
-        passes_rule =  validate_file_not_modified(commit, validator, pattern)        
 
-        if not passes_rule:
-            self.add_violation(f"Commit modified locked file(s) with pattern {pattern}")
-
+        passes_rule, violation = validate_file_not_modified(
+            commit, self.validator, pattern
+        )
+        self.add_violation(violation)
         return passes_rule
 
-def validate_file_not_modified(commit: Commit, validator: Commit, pattern):
+
+def validate_file_not_modified(commit: Commit, validator: Commit, pattern: str):
     files_modified = commit.get_files_modified(validator)
     file_matches = list(filter(lambda f: re.match(pattern, f), files_modified))
-    
+
     if len(file_matches) > 0:
         # Commit modifies locked file
-        return False
-    else:
-        return True
+        files = ", ".join(file_matches)
+        violation = f"Commit modified locked file(s): {files}"
+        return False, violation
+
+    return True, None
