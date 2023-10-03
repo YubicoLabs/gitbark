@@ -15,10 +15,9 @@
 from gitbark.commands.verify import verify as verify_cmd
 from gitbark.commands.install import is_installed, install as install_cmd
 
-from gitbark.store import Store, Project
+from gitbark.project import Project
 from gitbark.util import cmd
 from gitbark.git import Commit, ReferenceUpdate, get_root
-from gitbark import globals
 from .util import (
     BarkContextObject,
     click_callback,
@@ -42,19 +41,9 @@ def cli(ctx):
     ctx.obj = BarkContextObject()
 
     toplevel = get_root()
-    store = Store()
+    project = Project(toplevel)
 
-    ctx.obj["store"] = store
-
-    project = store.get_project(toplevel)
-    if not project:
-        project = store.create_project(toplevel)
     ctx.obj["project"] = project
-
-    env = project.env
-    env.activate()
-
-    globals.init(toplevel)
 
 
 _add_subcommands(cli)
@@ -67,12 +56,12 @@ def install(ctx):
     Install GitBark in repo.
     """
     project = ctx.obj["project"]
-    store = ctx.obj["store"]
+    # store = ctx.obj["store"]
 
     verify_bootstrap(project)
 
     root_commit = cmd("git", "rev-list", "--max-parents=0", "branch_rules")[0]
-    if root_commit != project.root_commit:
+    if root_commit != project.bootstrap:
         click.echo(
             f"The bootstrap commit ({root_commit}) of the branch_rules "
             "branch has not been verified!"
@@ -82,13 +71,14 @@ def install(ctx):
             abort=True,
             err=True,
         )
-        project.set_root_commit(root_commit)
+        project.bootstrap = root_commit
 
     report = install_cmd(project)
+    project.update()
 
     if report.is_repo_valid():
         click.echo("Installed GitBark successfully!")
-        store.update_project(project)
+        
 
     handle_exit(report)
 
@@ -177,7 +167,7 @@ def verify(ctx, branch, ref_update, all, bootstrap):
     if not is_installed(project):
         click.echo('Error: Bark is not installed! Run "bark install" first!')
         exit(1)
-    store = ctx.obj["store"]
+    # store = ctx.obj["store"]
 
     head = None
     if not all:
@@ -187,14 +177,14 @@ def verify(ctx, branch, ref_update, all, bootstrap):
         branch = ref_update.ref_name
 
     report = verify_cmd(project, branch, head, bootstrap, all)
-
+    project.update()
     if report.is_repo_valid():
         if all:
             click.echo("Repository is in valid state!")
         elif not ref_update:
             click.echo(f"{branch} is in a valid state!")
 
-        store.update_project(project)
+        # store.update_project(project)
 
     handle_exit(report)
 

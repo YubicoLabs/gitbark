@@ -13,10 +13,10 @@
 # limitations under the License.
 
 from .git import Commit
-from .store import Cache, CacheEntry, Project
+from .project import Cache, CacheEntry, Project
 from .rule import get_rules
 from .util import cmd
-from .objects import BranchRule
+from .objects import BranchRule, BarkRules
 
 BARK_RULES_BRANCH = "refs/heads/branch_rules"
 
@@ -38,7 +38,11 @@ def find_nearest_valid_ancestors(
     return valid_ancestors
 
 
-def validate_rules(commit: Commit, validator: Commit, project: Project):
+def validate_rules(commit: Commit, validator: Commit, project: Project, branch: str):
+    if branch == BARK_RULES_BRANCH:
+        bark_rules = commit.get_bark_rules()
+        project.load_rule_entrypoints(bark_rules)
+
     rules = get_rules(validator, project)
     passes_rules = True
     for rule in rules:
@@ -91,7 +95,7 @@ def is_commit_valid(
             for validator in find_nearest_valid_ancestors(parent, project.cache):
                 validators.add(validator)
 
-    if not all(validate_rules(commit, validator, project) for validator in validators):
+    if not all(validate_rules(commit, validator, project, branch) for validator in validators):
         cache.set(commit.hash, CacheEntry(False, commit.violations))
         return False
     else:
@@ -184,7 +188,8 @@ def update_modules(commit: Commit, branch: str, project: Project):
                 update_required = True
 
     if update_required or len(prev_bark_modules) == 0:
-        project.env.install_modules(bark_modules)
+        for module in bark_modules:
+            project.install_bark_module(module)
 
 
 def validate_commit_rules(
@@ -199,17 +204,14 @@ def validate_commit_rules(
         return is_commit_valid(head, bootstrap, branch, project)
 
 
-def get_branch_rules(project: Project) -> list[BranchRule]:
+def get_bark_rules(project: Project) -> BarkRules:
     """Returns the latest branch_rules"""
 
     branch_rules_head = Commit(
         project.repo.revparse_single("branch_rules").id.__str__()
     )
 
-    branch_rules = branch_rules_head.get_bark_rules().branches
-
-    return branch_rules
-
+    return branch_rules_head.get_bark_rules()
 
 def is_descendant(prev: Commit, new: Commit):
     """Checks that the current tip is a descendant of the old tip"""

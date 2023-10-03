@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from .verify import verify, Report
-from ..store import Project
+from ..project import Project
 from ..util import cmd
 
 import pkg_resources
@@ -45,7 +45,7 @@ def bootstrap_verified(project: Project) -> bool:
         root_commit = cmd("git", "rev-list", "--max-parents=0", "branch_rules")[0]
     except Exception:
         root_commit = ""
-    return root_commit == project.root_commit
+    return root_commit == project.bootstrap
 
 
 def is_installed(project: Project) -> bool:
@@ -92,7 +92,7 @@ def hooks_installed(project: Project):
         __name__, "hooks/prepare-commit-msg"
     ).decode()
 
-    hooks_path = f"{project.project_path}/.git/hooks"
+    hooks_path = f"{project.path}/.git/hooks"
     reference_transaction_path = f"{hooks_path}/reference-transaction"
     prepare_commit_msg_path = f"{hooks_path}/prepare-commit-msg"
 

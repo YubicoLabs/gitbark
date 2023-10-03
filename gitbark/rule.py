@@ -14,11 +14,11 @@
 
 from .git import Commit
 from .objects import CompositeCommitRuleData, CommitRuleData
-from .store import Cache, Project
+from .project import Cache, Project
 
 from abc import ABC, abstractmethod
 from typing import Union
-import importlib
+import importlib        
 import inspect
 
 
@@ -65,7 +65,7 @@ def get_rules(commit: Commit, project: Project) -> list[Rule]:
     # TODO should implement a caching mechanism here so that we don't need
     # to import rule modules multiple times.
     cache = project.cache
-    rule_to_entrypoint = project.env.get_rule_entrypoints()
+    rule_to_entrypoint = project.rule_entrypoints
     commit_rules = commit.get_commit_rules()
     rules: list[Union[Rule, CompositeRule]] = []
 

@@ -15,12 +15,12 @@
 from ..core import (
     validate_commit_rules,
     validate_branch_rules,
-    get_branch_rules,
+    get_bark_rules,
     BARK_RULES_BRANCH,
 )
 from ..objects import BranchRule
 from ..git import Commit
-from ..store import Project
+from ..project import Project
 
 from typing import Optional
 from dataclasses import dataclass
@@ -52,7 +52,7 @@ def verify_bark_rules(
     report: Report,
 ):
     """Verifies the bark_rules branch."""
-    bootstrap = Commit(project.root_commit)
+    bootstrap = Commit(project.bootstrap)
     head = Commit(project.repo.revparse_single(BARK_RULES_BRANCH).id.__str__())
     return verify_branch(
         project=project,
@@ -88,7 +88,10 @@ def verify(
     if not verify_bark_rules(project, report):
         return report
 
-    branch_rules = get_branch_rules(project)
+    bark_rules = get_bark_rules(project)
+    project.load_rule_entrypoints(bark_rules)
+    branch_rules = bark_rules.branches
+
 
     if all:
         # Verify all branches matching branch_rules

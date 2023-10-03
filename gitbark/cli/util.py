@@ -2,10 +2,13 @@ from collections import OrderedDict
 from collections.abc import MutableMapping
 
 from gitbark.git import get_root
-from gitbark.store import Project, Store
+from gitbark.core import get_bark_rules
+from gitbark.project import Project
 from gitbark.commands.verify import Report
+from gitbark import globals
 
 from pkg_resources import EntryPoint
+from pygit2 import Repository
 import functools
 import click
 import sys
@@ -75,19 +78,18 @@ def click_callback(invoke_on_missing=False):
 
 def _add_subcommands(cli: click.Group):
     toplevel = get_root()
-    store = Store()
-    project = store.get_project(toplevel)
-    if not project:
-        return
-    subcommands = project.env.get_subcommands()
-
-    for subcommand in subcommands:
+    project = Project(toplevel)
+    globals.init(toplevel)
+    bark_rules = get_bark_rules(project)
+    subcommand_entrypoints = project.get_subcommand_entrypoints(bark_rules)
+    for entrypoint in subcommand_entrypoints:
         try:
-            ep_string = f"x={subcommand['entrypoint']}"
+            ep_string = f"x={entrypoint}"
             ep = EntryPoint.parse(ep_string)
             cli.add_command(ep.resolve())
         except Exception as e:
             raise e
+        
             
 def verify_bootstrap(project: Project):
     repo = project.repo

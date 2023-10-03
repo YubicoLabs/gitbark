@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from gitbark.git import Commit
-from gitbark.store import Cache
+from gitbark.project import Cache
 from gitbark.rule import Rule
 
 
