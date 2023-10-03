@@ -92,11 +92,12 @@ def _add_subcommands(group: click.Group):
     try:
         toplevel = get_root()
         project = Project(toplevel)
+        globals.init(toplevel)
         if not is_installed(project):
             return
     except:
         return
-    globals.init(toplevel)
+    
     bark_rules = get_bark_rules(project)
     subcommand_entrypoints = project.get_subcommand_entrypoints(bark_rules)
     for entrypoint in subcommand_entrypoints:
