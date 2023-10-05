@@ -8,7 +8,6 @@ from gitbark.commands.install import is_installed
 from gitbark.util import cmd
 from gitbark import globals
 
-
 from pkg_resources import EntryPoint
 import functools
 import click

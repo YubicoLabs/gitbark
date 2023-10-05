@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from .git import Commit
-from .project import Cache, CacheEntry, Project
+from .project import Cache, Project
 from .rule import get_rules
 from .util import cmd
 from .objects import BranchRule, BarkRules
@@ -86,7 +86,7 @@ def is_commit_valid(
         return value.valid
 
     if commit == bootstrap:
-        cache.set(commit.hash, CacheEntry(True, commit.violations))
+        cache.set(commit.hash, True, commit.violations)
         update_modules(commit, branch, project)
         return True
 
@@ -101,10 +101,10 @@ def is_commit_valid(
     if not all(
         validate_rules(commit, validator, project, branch) for validator in validators
     ):
-        cache.set(commit.hash, CacheEntry(False, commit.violations))
+        cache.set(commit.hash, False, commit.violations)
         return False
     else:
-        cache.set(commit.hash, CacheEntry(True, commit.violations))
+        cache.set(commit.hash, True, commit.violations)
         update_modules(commit, branch, project)
         return True
 
@@ -120,13 +120,13 @@ def is_commit_valid_iterative(
         return value.valid
 
     if commit == bootstrap:
-        cache.set(commit.hash, CacheEntry(True, commit.violations))
+        cache.set(commit.hash, True, commit.violations)
         update_modules(commit, branch, project)
         return True
 
     commit_to_children = get_children_map(commit)
 
-    cache.set(bootstrap.hash, CacheEntry(True, commit.violations))
+    cache.set(bootstrap.hash, True, commit.violations)
     queue = [bootstrap]
 
     processed = set()
@@ -164,9 +164,9 @@ def is_commit_valid_iterative(
                     validate_rules(child, validator, project, branch)
                     for validator in validators
                 ):
-                    cache.set(child.hash, CacheEntry(False, child.violations))
+                    cache.set(child.hash, False, child.violations)
                 else:
-                    cache.set(child.hash, CacheEntry(True, child.violations))
+                    cache.set(child.hash, True, child.violations)
                     update_modules(commit, branch, project)
                 validated.add(child.hash)
                 queue.append(child)

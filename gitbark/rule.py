@@ -87,7 +87,7 @@ def load_rule_module(rule_id, rule_to_entrypoint):
     module_name = rule_to_entrypoint[rule_id]
     module = importlib.import_module(module_name)
     for _, obj in inspect.getmembers(module):
-        if inspect.isclass(obj) and issubclass(obj, Rule) and obj != Rule:
+        if inspect.isclass(obj) and issubclass(obj, Rule):
             return obj
 
 

@@ -32,6 +32,7 @@ from typing import Optional
 import click
 import logging
 import sys
+from gitbark import globals
 
 logger = logging.getLogger(__name__)
 
@@ -46,8 +47,7 @@ def cli(ctx):
 
     ctx.obj["project"] = project
 
-
-_add_subcommands(cli)
+    globals.init(toplevel)
 
 
 @cli.command()
@@ -57,7 +57,6 @@ def install(ctx):
     Install GitBark in repo.
     """
     project = ctx.obj["project"]
-    # store = ctx.obj["store"]
 
     verify_bootstrap(project)
 
@@ -197,6 +196,16 @@ class _DefaultFormatter(logging.Formatter):
         return message
 
 
+def should_add_subcommands(argv: list[str]) -> bool:
+    if len(argv) > 1:
+        cmd = argv[1]
+        if cmd in ["verify", "install"]:
+            return False
+        else:
+            return True
+    return True
+
+
 def main():
     handler = logging.StreamHandler()
     handler.setLevel(logging.WARNING)
@@ -205,8 +214,11 @@ def main():
     logging.getLogger().addHandler(handler)
 
     try:
+        if should_add_subcommands(sys.argv):
+            _add_subcommands(cli)
         cli(obj={})
     except Exception as e:
+        # raise e
         status = 1
         msg = e.args[0]
         if isinstance(e, CliFail):
