@@ -25,5 +25,5 @@ COMMIT_SOURCE=$2
 SHA1=$3
 
 if [ $COMMIT_SOURCE = "merge" ]; then
-    bark add-approvals --commit-msg-file $COMMIT_MSG_FILE
+    bark prepare-merge-msg $COMMIT_MSG_FILE
 fi

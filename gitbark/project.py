@@ -66,7 +66,7 @@ class Cache:
     def get_from_db(self, key: str) -> Optional[CacheEntry]:
         with connect_db(self.db_path) as db:
             entry = db.execute(
-                "SELECT valid, violations FROM cache_entries WHERE commit_hash = ?",
+                "SELECT valid, violations FROM cache_entries WHERE commit_hash = ? ",
                 [key],
             ).fetchone()
             if entry:
@@ -144,7 +144,7 @@ class Project:
                     commit_hash TEXT NOT NULL,
                     valid INTEGER NOT NULL,
                     violations TEXT NOT NULL,
-                    PRIMARY KEY (commit_hash)
+                    PRIMARY KEY (commit_hash) ON CONFLICT IGNORE
                 );
                 """
             )

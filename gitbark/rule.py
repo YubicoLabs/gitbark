@@ -17,74 +17,88 @@ from .objects import CompositeCommitRuleData, CommitRuleData
 from .project import Cache, Project
 
 from abc import ABC, abstractmethod
-from typing import Union
+from pygit2 import Repository
+from typing import Union, Any
 import importlib
 import inspect
 
 
 class Rule(ABC):
     def __init__(
-        self, name: str, commit: Commit, cache: Cache, args: dict = {}
+        self,
+        name: str,
+        commit: Commit,
+        cache: Cache,
+        repo: Repository,
+        args: dict[str, Any] = {},
     ) -> None:
         self.name = name
         self.validator = commit
         self.args = args
         self.cache = cache
-        self.sub_rules: list["Rule"] = []
-        self.violation = None
+        self.repo = repo
+        self.violation: str = ""
 
-    def get_sub_rules(self) -> list["Rule"]:
-        return self.sub_rules
-
-    def add_sub_rule(self, rule: "Rule"):
-        self.sub_rules.append(rule)
-
-    def add_violation(self, violation):
+    def add_violation(self, violation: str) -> None:
         self.violation = violation
 
-    def get_violation(self):
+    def get_violation(self) -> str:
         return self.violation
 
     @abstractmethod
     def validate(self, commit: Commit) -> bool:
         pass
 
+    def prepare_merge_msg(self, commit_msg_file: str) -> None:
+        pass
+
 
 class CompositeRule(Rule):
+    def __init__(self) -> None:
+        self.violation: str = ""
+        self.sub_rules: list[Rule] = []
+
+    def add_sub_rule(self, rule: Rule):
+        self.sub_rules.append(rule)
+
     def validate(self, commit: Commit) -> bool:
-        if not any(rule.validate(commit) for rule in self.get_sub_rules()):
+        if not any(rule.validate(commit) for rule in self.sub_rules):
             return False
         return True
 
     def get_violation(self):
-        violations = [rule.get_violation() for rule in self.get_sub_rules()]
+        violations = [rule.get_violation() for rule in self.sub_rules]
         return " and ".join(violations)
 
 
 def get_rules(commit: Commit, project: Project) -> list[Rule]:
-    # TODO should implement a caching mechanism here so that we don't need
-    # to import rule modules multiple times.
-    cache = project.cache
-    rule_to_entrypoint = project.rule_entrypoints
-    commit_rules = commit.get_commit_rules()
     rules: list[Union[Rule, CompositeRule]] = []
 
-    for rule in commit_rules.rules:
+    for rule in commit.get_commit_rules().rules:
         if isinstance(rule, CompositeCommitRuleData):
-            composite_rule = CompositeRule("any", commit, cache)
+            composite_rule = CompositeRule()
             for sub_rule in rule.rules:
                 composite_rule.add_sub_rule(
-                    create_rule(sub_rule, commit, rule_to_entrypoint, cache)
+                    create_rule(
+                        sub_rule,
+                        commit,
+                        project.rule_entrypoints,
+                        project.cache,
+                        project.repo,
+                    )
                 )
             rules.append(composite_rule)
         else:
-            rules.append(create_rule(rule, commit, rule_to_entrypoint, cache))
+            rules.append(
+                create_rule(
+                    rule, commit, project.rule_entrypoints, project.cache, project.repo
+                )
+            )
     return rules
 
 
-def load_rule_module(rule_id, rule_to_entrypoint):
-    # Need to know from bark_module.yaml the entrypoints
-    module_name = rule_to_entrypoint[rule_id]
+def load_rule_module(rule_id: str, rule_entrypoints: dict[str, str]):
+    module_name = rule_entrypoints[rule_id]
     module = importlib.import_module(module_name)
     for _, obj in inspect.getmembers(module):
         if inspect.isclass(obj) and issubclass(obj, Rule):
@@ -92,7 +106,11 @@ def load_rule_module(rule_id, rule_to_entrypoint):
 
 
 def create_rule(
-    rule: CommitRuleData, commit: Commit, rule_to_entrypoint, cache: Cache
+    rule: CommitRuleData,
+    commit: Commit,
+    rule_entrypoints: dict[str, str],
+    cache: Cache,
+    repo: Repository,
 ) -> Rule:
-    rule_module = load_rule_module(rule.id, rule_to_entrypoint)
-    return rule_module(rule.id, commit, cache, rule.args)
+    rule_module = load_rule_module(rule.id, rule_entrypoints)
+    return rule_module(rule.id, commit, cache, repo, rule.args)
