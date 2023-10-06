@@ -53,7 +53,7 @@ def verify_bark_rules(
 ):
     """Verifies the bark_rules branch."""
     bootstrap = Commit(project.bootstrap)
-    head = Commit(project.repo.revparse_single(BARK_RULES_BRANCH).id.__str__())
+    head = Commit(project.repo.references[BARK_RULES_BRANCH].target)
     return verify_branch(
         project=project,
         branch=BARK_RULES_BRANCH,
@@ -118,7 +118,7 @@ def verify_all(project: Project, report: Report, branch_rules: list[BranchRule])
     """Verify all branches matching branch_rules."""
     for rule in branch_rules:
         for branch in rule.branches(project.repo):
-            head_hash = project.repo.revparse_single(branch).id.__str__()
+            head_hash = project.repo.references[branch].target
             head = Commit(head_hash)
             bootstrap = Commit(rule.bootstrap_commit)
             verify_branch(

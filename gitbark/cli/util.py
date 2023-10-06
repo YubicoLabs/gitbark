@@ -110,12 +110,6 @@ def _add_subcommands(group: click.Group):
             raise e
 
 
-def verify_bootstrap(project: Project):
-    repo = project.repo
-    if not repo.lookup_branch("branch_rules"):
-        raise CliFail('Error: The "branch_rules" branch has not been created!')
-
-
 def is_local_branch(branch: str):
     return branch.startswith("refs/heads")
 

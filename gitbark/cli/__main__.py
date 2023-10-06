@@ -18,13 +18,13 @@ from gitbark.commands.prepare_merge_msg import (
     prepare_merge_msg as prepare_merge_msg_cmd,
 )
 
+from gitbark.core import BARK_RULES_BRANCH
 from gitbark.project import Project
 from gitbark.util import cmd
 from gitbark.git import Commit, ReferenceUpdate
 from .util import (
     BarkContextObject,
     click_callback,
-    verify_bootstrap,
     CliFail,
     handle_exit,
     get_root,
@@ -57,13 +57,18 @@ def cli(ctx):
 @click.pass_context
 def install(ctx):
     """
-    Install GitBark in repo.
+    Install GitBark modules in repo.
+
+    This command assumes GitBark has been configured in the repository. If so,
+    it will verify it and install required GitBark modules and hooks.
     """
     project = ctx.obj["project"]
 
-    verify_bootstrap(project)
+    repo = project.repo
+    if BARK_RULES_BRANCH not in repo.references:
+        raise CliFail('Error: The "bark_rules" branch has not been created!')
 
-    root_commit = cmd("git", "rev-list", "--max-parents=0", "branch_rules")[0]
+    root_commit = cmd("git", "rev-list", "--max-parents=0", BARK_RULES_BRANCH)[0]
     if root_commit != project.bootstrap:
         click.echo(
             f"The bootstrap commit ({root_commit}) of the branch_rules "
@@ -124,7 +129,7 @@ def _get_head(
     if ref_update:
         hash = ref_update.new_ref
     else:
-        hash = project.repo.revparse_single(branch).id.__str__()
+        hash = project.repo.references[branch].target
     return Commit(hash)
 
 
@@ -235,6 +240,7 @@ def main():
             _add_subcommands(cli)
         cli(obj={})
     except Exception as e:
+        raise e
         status = 1
         msg = e.args[0]
         if isinstance(e, CliFail):

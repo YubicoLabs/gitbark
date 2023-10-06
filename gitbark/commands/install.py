@@ -15,6 +15,7 @@
 from .verify import verify, Report
 from ..project import Project
 from ..util import cmd
+from ..core import BARK_RULES_BRANCH
 
 import pkg_resources
 import os
@@ -42,7 +43,7 @@ def install(project: Project) -> Report:
 
 def bootstrap_verified(project: Project) -> bool:
     try:
-        root_commit = cmd("git", "rev-list", "--max-parents=0", "branch_rules")[0]
+        root_commit = cmd("git", "rev-list", "--max-parents=0", BARK_RULES_BRANCH)[0]
     except Exception:
         root_commit = ""
     return root_commit == project.bootstrap
