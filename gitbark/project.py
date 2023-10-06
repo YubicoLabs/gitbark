@@ -15,36 +15,73 @@
 from .util import cmd
 from .objects import BarkModule, BarkRules
 
-from typing import Generator, Optional
+from dataclasses import dataclass
+from typing import Generator, Optional, Any
 from enum import StrEnum
 from pygit2 import Repository
 import yaml
-import pickle
-import pkg_resources
 import os
 import sqlite3
 import contextlib
 import random
 import string
+import sys
+import json
 
 
+@contextlib.contextmanager
+def connect_db(db_path: str) -> Generator[sqlite3.Connection, None, None]:
+    db_path = db_path
+    with contextlib.closing(sqlite3.connect(db_path)) as db:
+        with db:
+            yield db
+
+
+@dataclass
 class CacheEntry:
-    def __init__(self, valid: bool, violations: list[str]) -> None:
-        self.valid = valid
-        self.violations = violations
+    valid: bool
+    violations: list[str]
+
+    @classmethod
+    def parse_from_db(cls, entry: Any) -> "CacheEntry":
+        valid = bool(entry[0])
+        violations = json.loads(entry[1])
+        return cls(valid=valid, violations=violations)
 
 
 class Cache:
-    def __init__(self, file: str) -> None:
-        self.file = file
-        try:
-            self.cache: dict[str, CacheEntry] = self.load()
-        except Exception as e:
-            raise e
+    def __init__(self, db_path: str) -> None:
+        self.db_path = db_path
+        self.cache: dict[str, CacheEntry] = {}
 
     def get(self, key: str) -> Optional[CacheEntry]:
-        value = self.cache.get(key)
-        return value
+        if self.has(key):
+            return self.cache.get(key)
+        else:
+            entry = self.get_from_db(key)
+            if entry:
+                self.set(key, entry.valid, entry.violations)
+            return entry
+
+    def get_from_db(self, key: str) -> Optional[CacheEntry]:
+        with connect_db(self.db_path) as db:
+            entry = db.execute(
+                "SELECT valid, violations FROM cache_entries WHERE commit_hash = ? ",
+                [key],
+            ).fetchone()
+            if entry:
+                return CacheEntry.parse_from_db(entry)
+            return None
+
+    def save_to_db(self, key: str, entry: CacheEntry) -> None:
+        with connect_db(self.db_path) as db:
+            valid = int(entry.valid)
+            violations = json.dumps(entry.violations)
+            db.execute(
+                "INSERT INTO cache_entries (commit_hash, valid, violations) "
+                "VALUES (?, ?, ?)",
+                [key, valid, violations],
+            )
 
     def is_empty(self) -> bool:
         return len(self.cache) == 0
@@ -52,18 +89,12 @@ class Cache:
     def has(self, key: str):
         return key in self.cache
 
-    def set(self, key: str, value: CacheEntry):
-        self.cache[key] = value
-
-    def load(self):
-        if os.path.exists(self.file):
-            with open(self.file, "rb") as f:
-                return pickle.load(f)
-        return {}
+    def set(self, key: str, valid: bool, violations: list[str]):
+        self.cache[key] = CacheEntry(valid, violations)
 
     def dump(self) -> None:
-        with open(self.file, "wb") as f:
-            pickle.dump(self.cache, f)
+        for key, entry in self.cache.items():
+            self.save_to_db(key, entry)
 
 
 class PROJECT_FILES(StrEnum):
@@ -91,31 +122,29 @@ class Project:
             os.makedirs(self.env_path, exist_ok=True)
             cmd("virtualenv", self.env_path, cwd=self.path)
 
+        sys.path.append(self.get_env_site_packages())
+
         if not os.path.exists(self.db_path):
             self.create_db()
 
-        self.cache = self.get_cache()
+        self.cache = Cache(self.db_path)
         self.bootstrap = self.get_bootstrap()
         self.repo = Repository(self.path)
 
-    @contextlib.contextmanager
-    def connect_db(
-        self, db_path: str | None = None
-    ) -> Generator[sqlite3.Connection, None, None]:
-        db_path = db_path or self.db_path
-
-        with contextlib.closing(sqlite3.connect(db_path)) as db:
-            with db:
-                yield db
-
     def create_db(self) -> None:
-        with self.connect_db(self.db_path) as db:
+        with connect_db(self.db_path) as db:
             db.executescript(
                 """
                 CREATE TABLE bark_modules (
                     repo TEXT NOT NULL,
                     path TEXT NOT NULL,
                     PRIMARY KEY (repo)
+                );
+                CREATE TABLE cache_entries (
+                    commit_hash TEXT NOT NULL,
+                    valid INTEGER NOT NULL,
+                    violations TEXT NOT NULL,
+                    PRIMARY KEY (commit_hash) ON CONFLICT IGNORE
                 );
                 """
             )
@@ -137,7 +166,7 @@ class Project:
         os.makedirs(modules_path)
 
         cmd("git", "clone", bark_module.repo, modules_path)
-        with self.connect_db() as db:
+        with connect_db(self.db_path) as db:
             db.execute(
                 "INSERT INTO bark_modules (repo, path) VALUES (?, ?)",
                 [bark_module.repo, modules_path],
@@ -150,15 +179,18 @@ class Project:
             bark_module_path = self.get_bark_module_path(bark_module)
 
         pip_path = os.path.join(self.env_path, "bin", "pip")
-        cmd(pip_path, "install", f"git+file:///{bark_module_path}@{bark_module.rev}")
+        cmd(pip_path, "install", f"git+file://{bark_module_path}@{bark_module.rev}")
+
+    def get_env_site_packages(self) -> str:
+        exec_path = os.path.join(self.env_path, "bin", "python")
+        return cmd(
+            exec_path,
+            "-c",
+            "from distutils.sysconfig import get_python_lib; print(get_python_lib())",
+        )[0]
 
     def load_rule_entrypoints(self, bark_rules: BarkRules) -> None:
         entrypoints = {}
-
-        # Add bark_core rules
-        for rule in get_bark_core_rules():
-            id, entrypoint = rule["id"], rule["entrypoint"]
-            entrypoints[id] = entrypoint
 
         for module in bark_rules.modules:
             bark_module = self.get_bark_module_config(module)
@@ -173,10 +205,6 @@ class Project:
 
     def get_subcommand_entrypoints(self, bark_rules: BarkRules) -> list[str]:
         entrypoints = []
-
-        # Add bark_core subcommands
-        for subcommand in get_bark_core_subcommands():
-            entrypoints.append(subcommand["entrypoint"])
 
         for module in bark_rules.modules:
             bark_module = self.get_bark_module_config(module)
@@ -199,15 +227,13 @@ class Project:
         return yaml.safe_load(bark_module)
 
     def get_bark_module_path(self, bark_module: BarkModule) -> str:
-        with self.connect_db() as db:
-            bark_module_path = db.execute(
+        with connect_db(self.db_path) as db:
+            res = db.execute(
                 "SELECT path FROM bark_modules WHERE repo = ?", [bark_module.repo]
             ).fetchone()
-            return bark_module_path
-
-    def get_cache(self) -> Cache:
-        cache_file = os.path.join(self.bark_directory, PROJECT_FILES.CACHE)
-        return Cache(cache_file)
+            if res:
+                return res[0]
+            return res
 
     def get_bootstrap(self) -> str:
         bootstrap_file = os.path.join(self.bark_directory, PROJECT_FILES.BOOTSTRAP)
@@ -221,22 +247,6 @@ class Project:
         with open(bootstrap_file, "w") as f:
             f.write(self.bootstrap)
 
-    def save_cache(self) -> None:
-        self.cache.dump()
-
     def update(self) -> None:
         self.save_bootstrap()
-        self.save_cache()
-
-
-def _get_bark_core_config():
-    bark_module = pkg_resources.resource_string(__name__, "bark_core/bark_module.yaml")
-    return yaml.safe_load(bark_module)
-
-
-def get_bark_core_rules():
-    return _get_bark_core_config()["rules"]
-
-
-def get_bark_core_subcommands():
-    return _get_bark_core_config()["subcommands"]
+        self.cache.dump()

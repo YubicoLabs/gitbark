@@ -14,14 +14,17 @@
 
 from gitbark.commands.verify import verify as verify_cmd
 from gitbark.commands.install import is_installed, install as install_cmd
+from gitbark.commands.prepare_merge_msg import (
+    prepare_merge_msg as prepare_merge_msg_cmd,
+)
 
+from gitbark.core import BARK_RULES_BRANCH
 from gitbark.project import Project
 from gitbark.util import cmd
 from gitbark.git import Commit, ReferenceUpdate
 from .util import (
     BarkContextObject,
     click_callback,
-    verify_bootstrap,
     CliFail,
     handle_exit,
     get_root,
@@ -32,6 +35,7 @@ from typing import Optional
 import click
 import logging
 import sys
+from gitbark import globals
 
 logger = logging.getLogger(__name__)
 
@@ -46,22 +50,25 @@ def cli(ctx):
 
     ctx.obj["project"] = project
 
-
-_add_subcommands(cli)
+    globals.init(toplevel)
 
 
 @cli.command()
 @click.pass_context
 def install(ctx):
     """
-    Install GitBark in repo.
+    Install GitBark modules in repo.
+
+    This command assumes GitBark has been configured in the repository. If so,
+    it will verify it and install required GitBark modules and hooks.
     """
     project = ctx.obj["project"]
-    # store = ctx.obj["store"]
 
-    verify_bootstrap(project)
+    repo = project.repo
+    if BARK_RULES_BRANCH not in repo.references:
+        raise CliFail('Error: The "bark_rules" branch has not been created!')
 
-    root_commit = cmd("git", "rev-list", "--max-parents=0", "branch_rules")[0]
+    root_commit = cmd("git", "rev-list", "--max-parents=0", BARK_RULES_BRANCH)[0]
     if root_commit != project.bootstrap:
         click.echo(
             f"The bootstrap commit ({root_commit}) of the branch_rules "
@@ -122,7 +129,7 @@ def _get_head(
     if ref_update:
         hash = ref_update.new_ref
     else:
-        hash = project.repo.revparse_single(branch).id.__str__()
+        hash = project.repo.references[branch].target
     return Commit(hash)
 
 
@@ -186,6 +193,20 @@ def verify(ctx, branch, ref_update, all, bootstrap):
     handle_exit(report)
 
 
+@cli.command(hidden=True)
+@click.pass_context
+@click.argument("commit_msg_file")
+def prepare_merge_msg(ctx, commit_msg_file):
+    """Run merge hooks."""
+
+    project = ctx.obj["project"]
+    repo = project.repo
+
+    head = Commit(repo.head.target)
+
+    prepare_merge_msg_cmd(head, project, commit_msg_file)
+
+
 class _DefaultFormatter(logging.Formatter):
     def __init__(self, show_trace=False):
         self.show_trace = show_trace
@@ -197,6 +218,16 @@ class _DefaultFormatter(logging.Formatter):
         return message
 
 
+def should_add_subcommands(argv: list[str]) -> bool:
+    if len(argv) > 1:
+        cmd = argv[1]
+        if cmd in ["verify", "install"]:
+            return False
+        else:
+            return True
+    return True
+
+
 def main():
     handler = logging.StreamHandler()
     handler.setLevel(logging.WARNING)
@@ -205,8 +236,11 @@ def main():
     logging.getLogger().addHandler(handler)
 
     try:
+        if should_add_subcommands(sys.argv):
+            _add_subcommands(cli)
         cli(obj={})
     except Exception as e:
+        raise e
         status = 1
         msg = e.args[0]
         if isinstance(e, CliFail):

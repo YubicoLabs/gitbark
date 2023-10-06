@@ -13,19 +13,19 @@
 # limitations under the License.
 
 from .git import Commit
-from .project import Cache, CacheEntry, Project
+from .project import Cache, Project
 from .rule import get_rules
 from .util import cmd
 from .objects import BranchRule, BarkRules
 
-BARK_RULES_BRANCH = "refs/heads/branch_rules"
+BARK_RULES_BRANCH = "refs/heads/bark_rules"
 
 
 def nearest_valid_ancestors(
     commit: Commit, cache: Cache, valid_ancestors=[]
 ) -> list[Commit]:
     """Return the nearest valid ancestors"""
-    parents = commit.get_parents()
+    parents = commit.parents
     for parent in parents:
         value = cache.get(parent.hash)
         if value and value.valid:
@@ -64,7 +64,7 @@ def get_children_map(commit: Commit):
         current = queue.pop(0)
         if current.hash not in processed:
             processed.add(current.hash)
-            parents = current.get_parents()
+            parents = current.parents
             for parent in parents:
                 if parent.hash in children:
                     children[parent.hash].append(current)
@@ -86,12 +86,12 @@ def is_commit_valid(
         return value.valid
 
     if commit == bootstrap:
-        cache.set(commit.hash, CacheEntry(True, commit.violations))
+        cache.set(commit.hash, True, commit.violations)
         update_modules(commit, branch, project)
         return True
 
     validators = set()
-    for parent in commit.get_parents():
+    for parent in commit.parents:
         if is_commit_valid(parent, bootstrap, branch, project):
             validators.add(parent)
         else:
@@ -101,10 +101,10 @@ def is_commit_valid(
     if not all(
         validate_rules(commit, validator, project, branch) for validator in validators
     ):
-        cache.set(commit.hash, CacheEntry(False, commit.violations))
+        cache.set(commit.hash, False, commit.violations)
         return False
     else:
-        cache.set(commit.hash, CacheEntry(True, commit.violations))
+        cache.set(commit.hash, True, commit.violations)
         update_modules(commit, branch, project)
         return True
 
@@ -120,13 +120,13 @@ def is_commit_valid_iterative(
         return value.valid
 
     if commit == bootstrap:
-        cache.set(commit.hash, CacheEntry(True, commit.violations))
+        cache.set(commit.hash, True, commit.violations)
         update_modules(commit, branch, project)
         return True
 
     commit_to_children = get_children_map(commit)
 
-    cache.set(bootstrap.hash, CacheEntry(True, commit.violations))
+    cache.set(bootstrap.hash, True, commit.violations)
     queue = [bootstrap]
 
     processed = set()
@@ -164,9 +164,9 @@ def is_commit_valid_iterative(
                     validate_rules(child, validator, project, branch)
                     for validator in validators
                 ):
-                    cache.set(child.hash, CacheEntry(False, child.violations))
+                    cache.set(child.hash, False, child.violations)
                 else:
-                    cache.set(child.hash, CacheEntry(True, child.violations))
+                    cache.set(child.hash, True, child.violations)
                     update_modules(commit, branch, project)
                 validated.add(child.hash)
                 queue.append(child)
@@ -180,7 +180,7 @@ def update_modules(commit: Commit, branch: str, project: Project):
         return
 
     bark_modules = commit.get_bark_rules().modules
-    prev_bark_modules = [p.get_bark_rules().modules for p in commit.get_parents()]
+    prev_bark_modules = [p.get_bark_rules().modules for p in commit.parents]
 
     update_required = False
 
@@ -213,9 +213,7 @@ def validate_commit_rules(
 def get_bark_rules(project: Project) -> BarkRules:
     """Returns the latest branch_rules"""
 
-    branch_rules_head = Commit(
-        project.repo.revparse_single("branch_rules").id.__str__()
-    )
+    branch_rules_head = Commit(project.repo.references[BARK_RULES_BRANCH].target)
 
     return branch_rules_head.get_bark_rules()
 
@@ -240,7 +238,7 @@ def validate_branch_rules(
     # TODO: make this part more modular
     passes_rules = True
     if branch_rule.fast_forward_only:
-        prev_head_hash = project.repo.revparse_single(branch).id.__str__()
+        prev_head_hash = project.repo.references[branch].target
         prev_head = Commit(prev_head_hash)
         if not is_descendant(prev_head, head):
             head.add_rule_violation(f"Commit is not a descendant of {prev_head.hash}")

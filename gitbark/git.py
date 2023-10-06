@@ -16,8 +16,8 @@ from .objects import CommitRulesData, BarkRules
 from gitbark import globals
 
 from dataclasses import dataclass
+from pygit2 import Commit as _Commit
 import yaml
-import re
 
 
 class Commit:
@@ -28,86 +28,60 @@ class Commit:
 
     def __init__(self, hash: str) -> None:
         """Init Commit with commit hash"""
-        self.repo = globals.repo
-        self.hash = hash
-        self.object = self.repo.get(hash)
+        self.__repo = globals.repo
+        self.hash = str(hash)
+        self.__object: _Commit = self.__repo.get(hash)
         self.violations: list[str] = []
 
     @property
-    def parents(self):
-        return self.get_parents()
+    def author(self) -> tuple[str, str]:
+        """A tuple with the author name and email."""
+        return self.__object.author.name, self.__object.author.email
+
+    @property
+    def parents(self) -> list["Commit"]:
+        """The list of parent commits."""
+        return [Commit(hash) for hash in self.__object.parent_ids]
+
+    @property
+    def signature(self) -> tuple[bytes, bytes]:
+        """A tuple with the signature and subject."""
+        return self.__object.gpg_signature
+
+    @property
+    def message(self) -> str:
+        """The commit message."""
+        return self.__object.message
+
+    @property
+    def object(self) -> bytes:
+        """The raw commit object."""
+        return self.__object.read_raw()
 
     def __eq__(self, other) -> bool:
-        """Perform equality check on two commits based on their hashes"""
         return self.hash == other.hash
 
     def __hash__(self) -> int:
         return int(self.hash, base=16)
 
-    def add_rule_violation(self, violation):
+    def add_rule_violation(self, violation: str) -> None:
         self.violations.append(violation)
 
-    def get_commit_object(self):
-        """Return the Git commit object in text"""
-        content = self.object.read_raw()
-        return content
-
-    def get_commit_message(self):
-        return self.object.message
-
-    def get_blob_object(self, path):
-        """Return a specific blob object referenced to by the commit"""
-        return self.repo.revparse_single(f"{self.hash}:{path}").read_raw().decode()
-
-    def get_parents(self):
-        """Return the parents of a commit"""
-        parents = [
-            Commit(parent_hash.__str__()) for parent_hash in self.object.parent_ids
-        ]
-        return parents
-
-    def get_commit_rules(self):
-        commit_rules = yaml.safe_load(
-            self.get_blob_object(".gitbark/commit_rules.yaml")
-        )
+    def get_commit_rules(self) -> CommitRulesData:
+        """Get the commit rules associated with a commit."""
+        commit_rules_blob = self.__repo.revparse_single(
+            f"{self.hash}:.gitbark/commit_rules.yaml"
+        ).data
+        commit_rules = yaml.safe_load(commit_rules_blob)
         return CommitRulesData.parse(commit_rules)
 
-    def get_bark_rules(self) -> "BarkRules":
-        """Return the branch rules for a commit"""
-        bark_rules_object = yaml.safe_load(
-            self.get_blob_object(".gitbark/branch_rules.yaml")
-        )
+    def get_bark_rules(self) -> BarkRules:
+        """Get the bark rule associated with a commit."""
+        bark_rules_blob = self.__repo.revparse_single(
+            f"{self.hash}:.gitbark/bark_rules.yaml"
+        ).data
+        bark_rules_object = yaml.safe_load(bark_rules_blob)
         return BarkRules.parse(bark_rules_object)
-
-    def get_signature(self):
-        """Return the signature and commit object (with signature removed)"""
-        signature, commit_object = self.object.gpg_signature
-        if signature:
-            signature = signature.decode()
-
-        if commit_object:
-            commit_object = commit_object.decode()
-
-        return signature, commit_object
-
-    def get_public_keys(self, pattern: str):
-        """Return the set of trusted public keys reference to by the commit"""
-        pubkey_entries = self.repo.revparse_single(f"{self.hash}:.gitbark/.pubkeys")
-        pubkeys = []
-        for obj in pubkey_entries:
-            if re.search(pattern, obj.name):
-                pubkey = self.repo.get(obj.id).read_raw().decode().strip()
-                pubkeys.append(pubkey)
-        return pubkeys
-
-    def get_files_modified(self, validator):
-        """Return the set of files changed between validator commit
-        and current commit"""
-        diff = self.repo.diff(self.hash, validator.hash)
-        files = []
-        for delta in diff.deltas:
-            files.append(delta.new_file.path)
-        return files
 
 
 @dataclass

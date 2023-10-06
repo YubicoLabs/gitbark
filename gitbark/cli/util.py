@@ -8,7 +8,6 @@ from gitbark.commands.install import is_installed
 from gitbark.util import cmd
 from gitbark import globals
 
-
 from pkg_resources import EntryPoint
 import functools
 import click
@@ -109,12 +108,6 @@ def _add_subcommands(group: click.Group):
             group.add_command(ep.resolve())
         except Exception as e:
             raise e
-
-
-def verify_bootstrap(project: Project):
-    repo = project.repo
-    if not repo.lookup_branch("branch_rules"):
-        raise CliFail('Error: The "branch_rules" branch has not been created!')
 
 
 def is_local_branch(branch: str):
