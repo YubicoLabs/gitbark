@@ -6,7 +6,6 @@ from gitbark.project import Project
 from gitbark.commands.verify import Report
 from gitbark.commands.install import is_installed
 from gitbark.util import cmd
-from gitbark.git import ReferenceUpdate
 from gitbark import globals
 
 from pkg_resources import EntryPoint
@@ -127,7 +126,7 @@ def restore_incoming_changes():
         pass
 
 
-def handle_exit(report: Report, ref_update: ReferenceUpdate):
+def handle_exit(report: Report):
     exit_status = 0
     for branch_report in report.log:
         head = branch_report.head
