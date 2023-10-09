@@ -54,6 +54,44 @@ Currently GitBark can only be installed from source using the following command:
 pip install "git+https://github.com/YubicoLabs/gitbark.git"
 ```
 
+# Setup
+
+## 1. Define the initial rules for a branch.
+
+1. Checkout the branch you want to enforce rules on (e.g. the `main` branch).
+2. In the root of your repository create a folder named `.gitbark`. This folder will contain all GitBark related stuff.
+3. Within the `.gitbark` folder create a file named `commit_rules.yaml`. This file should define the [commit-rules](#commit-rules) that should apply. The rules that you define depend on the BarkModules you use. In this example let's assume we use [bark-core](https://github.com/YubicoLabs/gitbark-core), and want to use the `require_signature` rule. We will populate the `commit_rules.yaml` file as follows 
+    ```yaml
+    rules:
+    - rule: require_signature
+        args: [authorized_keys=alice.pub]
+    ```
+
+    In this case, we will also add `alice.pub` to a newly created folder `.pubkeys/` with the path `.gitbark/.pubkeys`. This is required by the rule, see [here](https://github.com/YubicoLabs/gitbark-core#signatures).
+
+4. Once you are satisified with everything, save the changes and commit.
+
+## 2. Define the initial bark rules
+1. Create the bark rules branch using ```git checkout --orphan bark_rules```. You might want to run `git rm -rf .` to start from a clean state. 
+2. Once again, create the `.gitbark` folder.
+3. Within `.gitbark` create the `commit_rules.yaml` file in the same way as in step 1.3. 
+4. Within `.gitbark` create a file named `bark_rules.yaml`. This file should specify the BarkModules to import, and what [bootstrap](#bootstrap) commits should be used when validating different branches. An example of how that might look like:
+    ```yaml
+    modules:
+        - repo: https://github.com/YubicoLabs/gitbark-core.git
+        rev: main
+    branches:
+        - pattern: main
+        bootstrap: 50ef360f31a64ab54b103acbf57f3d38e501978d # commit hash from step 1.3.
+        ff_only: True
+    ```
+    This `bark_rules.yaml` configuration tells GitBark that we want to use the `gitbark-core` module, and that the `main` branch should be validated using a specific commit as the bootstrap (in this case the one we created in step 1.3). 
+
+5. Once you are satisfied, save the changes and commit. 
+
+## 3. Install
+When you've finished the above steps you are ready to install GitBark on your repository. To do that run `bark install`. The first time you run this you will be prompted to verify the bootstrap commit for the `bark_rules` branch. If the installation succeeds you can try it out by committing changes that violate the rules etc. 
+
 
 # Commit Rules
 Commit rules can be thought of as a set of conditions that a commit must meet to be considered valid. These rules are defined within a YAML file named `commit_rules.yaml`, which is checked into the git repository `GitBark` is configured to run on. Since this file is under version control, every commit points to a specific version of the `commit_rules.yaml` file. 
