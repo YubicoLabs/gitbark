@@ -110,30 +110,9 @@ class BranchRule:
 
 
 @dataclass
-class BarkModule:
-    repo: str
-    rev: str
-
-    @classmethod
-    def parse(cls, module: dict) -> "BarkModule":
-        try:
-            repo = module["repo"]
-            rev = module["rev"]
-        except Exception:
-            raise ValueError("Cannot parse module!")
-
-        return cls(repo=repo, rev=rev)
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, BarkModule):
-            raise ValueError("Not implemented!")
-        return self.repo == other.repo and self.rev == other.rev
-
-
-@dataclass
 class BarkRules:
     branches: list[BranchRule]
-    modules: list[BarkModule]
+    modules: list[str]
 
     @classmethod
     def parse(cls, bark_rules: dict) -> "BarkRules":
@@ -142,7 +121,7 @@ class BarkRules:
             if "modules" not in bark_rules:
                 modules = []
             else:
-                modules = [BarkModule.parse(module) for module in bark_rules["modules"]]
+                modules = bark_rules["modules"]
         except Exception:
             raise ValueError("Cannot parse bark_modules.yaml!")
 

@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from .util import cmd
-from .objects import BarkModule
 
 from dataclasses import dataclass
 from typing import Generator, Optional, Any
@@ -141,10 +140,9 @@ class Project:
                 """
             )
 
-    def install_bark_module(self, bark_module: BarkModule) -> None:
+    def install_bark_module(self, bark_module: str) -> None:
         pip_path = os.path.join(self.env_path, "bin", "pip")
-        # TODO: Rev is ignored. Repo should be renamed and just be "pip-compatible".
-        cmd(pip_path, "install", bark_module.repo)
+        cmd(pip_path, "install", bark_module)
 
     def get_env_site_packages(self) -> str:
         exec_path = os.path.join(self.env_path, "bin", "python")
