@@ -17,7 +17,7 @@ from .objects import BarkModule, BarkRules
 
 from dataclasses import dataclass
 from typing import Generator, Optional, Any
-from enum import StrEnum
+from enum import Enum
 from pygit2 import Repository
 import yaml
 import os
@@ -97,7 +97,7 @@ class Cache:
             self.save_to_db(key, entry)
 
 
-class PROJECT_FILES(StrEnum):
+class PROJECT_FILES(str, Enum):
     CACHE = "cache.pickle"
     BOOTSTRAP = "bootstrap"
     DB = "db.db"
