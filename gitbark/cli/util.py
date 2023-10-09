@@ -136,7 +136,6 @@ def handle_exit(report: Report):
             exit_status = 1
             error_type = "ERROR"
         if is_remote_branch(branch):
-            exit_status = 2
             restore_incoming_changes()
         click.echo(f"{error_type}: Commit {head.hash} on {branch} is invalid!")
         for violation in head.violations:
