@@ -1,14 +1,13 @@
 from collections import OrderedDict
 from collections.abc import MutableMapping
 
-from gitbark.core import get_bark_rules
 from gitbark.project import Project
 from gitbark.commands.verify import Report
 from gitbark.commands.install import is_installed
 from gitbark.util import cmd
 from gitbark import globals
 
-from pkg_resources import EntryPoint
+from importlib.metadata import entry_points
 import functools
 import click
 import sys
@@ -99,15 +98,8 @@ def _add_subcommands(group: click.Group):
     except Exception:
         return
 
-    bark_rules = get_bark_rules(project)
-    subcommand_entrypoints = project.get_subcommand_entrypoints(bark_rules)
-    for entrypoint in subcommand_entrypoints:
-        try:
-            ep_string = f"x={entrypoint}"
-            ep = EntryPoint.parse(ep_string)
-            group.add_command(ep.resolve())
-        except Exception as e:
-            raise e
+    for ep in entry_points(group="bark_commands"):
+        group.add_command(ep.load())
 
 
 def is_local_branch(branch: str):

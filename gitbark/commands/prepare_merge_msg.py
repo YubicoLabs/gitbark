@@ -13,14 +13,12 @@
 # limitations under the License.
 
 from ..git import Commit
-from ..core import get_bark_rules
 from ..project import Project
 from ..rule import get_rules
 
 
 def prepare_merge_msg(head: Commit, project: Project, commit_msg_file: str):
-    bark_rules = get_bark_rules(project)
-    project.load_rule_entrypoints(bark_rules)
+    project.load_rule_entrypoints()
 
     for rule in get_rules(head, project):
         rule.prepare_merge_msg(commit_msg_file)

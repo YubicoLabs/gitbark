@@ -43,8 +43,7 @@ def validate_rules(
     branch: str,
 ):
     if branch == BARK_RULES_BRANCH:
-        bark_rules = commit.get_bark_rules()
-        project.load_rule_entrypoints(bark_rules)
+        project.load_rule_entrypoints()
 
     rules = get_rules(validator, project)
     passes_rules = True

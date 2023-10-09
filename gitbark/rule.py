@@ -19,8 +19,7 @@ from .project import Cache, Project
 from abc import ABC, abstractmethod
 from pygit2 import Repository
 from typing import Union, Any
-import importlib
-import inspect
+from importlib.metadata import EntryPoints
 
 
 class Rule(ABC):
@@ -97,20 +96,12 @@ def get_rules(commit: Commit, project: Project) -> list[Rule]:
     return rules
 
 
-def load_rule_module(rule_id: str, rule_entrypoints: dict[str, str]):
-    module_name = rule_entrypoints[rule_id]
-    module = importlib.import_module(module_name)
-    for _, obj in inspect.getmembers(module):
-        if inspect.isclass(obj) and issubclass(obj, Rule):
-            return obj
-
-
 def create_rule(
     rule: CommitRuleData,
     commit: Commit,
-    rule_entrypoints: dict[str, str],
+    rule_entrypoints: EntryPoints,
     cache: Cache,
     repo: Repository,
 ) -> Rule:
-    rule_module = load_rule_module(rule.id, rule_entrypoints)
-    return rule_module(rule.id, commit, cache, repo, rule.args)
+    rule_cls = rule_entrypoints[rule.id].load()
+    return rule_cls(rule.id, commit, cache, repo, rule.args)
