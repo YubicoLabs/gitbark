@@ -19,7 +19,6 @@ from dataclasses import dataclass
 from typing import Generator, Optional, Any
 from enum import Enum
 from pygit2 import Repository
-from importlib.metadata import entry_points
 import os
 import sqlite3
 import contextlib
@@ -167,9 +166,6 @@ class Project:
             "-c",
             "from distutils.sysconfig import get_python_lib; print(get_python_lib())",
         )[0]
-
-    def load_rule_entrypoints(self) -> None:
-        self.rule_entrypoints = entry_points(group="bark_rules")
 
     def get_bootstrap(self) -> str:
         bootstrap_file = os.path.join(self.bark_directory, PROJECT_FILES.BOOTSTRAP)

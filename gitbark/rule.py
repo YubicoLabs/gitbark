@@ -19,7 +19,7 @@ from .project import Cache, Project
 from abc import ABC, abstractmethod
 from pygit2 import Repository
 from typing import Union, Any
-from importlib.metadata import EntryPoints
+from importlib.metadata import entry_points
 
 
 class Rule(ABC):
@@ -81,27 +81,21 @@ def get_rules(commit: Commit, project: Project) -> list[Rule]:
                     create_rule(
                         sub_rule,
                         commit,
-                        project.rule_entrypoints,
                         project.cache,
                         project.repo,
                     )
                 )
             rules.append(composite_rule)
         else:
-            rules.append(
-                create_rule(
-                    rule, commit, project.rule_entrypoints, project.cache, project.repo
-                )
-            )
+            rules.append(create_rule(rule, commit, project.cache, project.repo))
     return rules
 
 
 def create_rule(
     rule: CommitRuleData,
     commit: Commit,
-    rule_entrypoints: EntryPoints,
     cache: Cache,
     repo: Repository,
 ) -> Rule:
-    rule_cls = rule_entrypoints[rule.id].load()
+    rule_cls = entry_points(group="bark_rules")[rule.id].load()
     return rule_cls(rule.id, commit, cache, repo, rule.args)
