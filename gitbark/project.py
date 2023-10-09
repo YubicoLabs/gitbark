@@ -22,8 +22,6 @@ from pygit2 import Repository
 import os
 import sqlite3
 import contextlib
-import random
-import string
 import sys
 import json
 
@@ -134,11 +132,6 @@ class Project:
         with connect_db(self.db_path) as db:
             db.executescript(
                 """
-                CREATE TABLE bark_modules (
-                    repo TEXT NOT NULL,
-                    path TEXT NOT NULL,
-                    PRIMARY KEY (repo)
-                );
                 CREATE TABLE cache_entries (
                     commit_hash TEXT NOT NULL,
                     valid INTEGER NOT NULL,
@@ -147,12 +140,6 @@ class Project:
                 );
                 """
             )
-
-    def db_module_name(self) -> str:
-        random_string = "".join(
-            random.choices(string.ascii_lowercase + string.digits, k=8)
-        )
-        return f"module_{random_string}"
 
     def install_bark_module(self, bark_module: BarkModule) -> None:
         pip_path = os.path.join(self.env_path, "bin", "pip")
