@@ -131,11 +131,11 @@ def handle_exit(report: Report):
     for branch_report in report.log:
         head = branch_report.head
         branch = branch_report.branch
-        error_type = "WARNING"
         if is_local_branch(branch):
             exit_status = 1
             error_type = "ERROR"
         if is_remote_branch(branch):
+            error_type = "WARNING"
             restore_incoming_changes()
         click.echo(f"{error_type}: Commit {head.hash} on {branch} is invalid!")
         for violation in head.violations:
