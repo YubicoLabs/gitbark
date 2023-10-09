@@ -120,7 +120,7 @@ class Project:
 
         if not os.path.exists(self.env_path):
             os.makedirs(self.env_path, exist_ok=True)
-            cmd("virtualenv", self.env_path, cwd=self.path)
+            cmd(sys.executable, "-m", "venv", self.env_path, cwd=self.path)
 
         sys.path.append(self.get_env_site_packages())
 
