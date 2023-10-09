@@ -66,6 +66,9 @@ def verify_bark_rules(
 def get_branch_rule(
     project: Project, branch: str, rules: list[BranchRule]
 ) -> Optional[BranchRule]:
+    if branch == BARK_RULES_BRANCH:
+        return BranchRule.get_default(BARK_RULES_BRANCH, project.bootstrap)
+
     for rule in rules:
         if branch in rule.branches(project.repo):
             return rule
@@ -100,7 +103,7 @@ def verify(
         # Verify target branch
         branch_rule = get_branch_rule(project, branch, branch_rules)
         if branch_rule:
-            bootstrap = Commit(branch_rule.bootstrap_commit)
+            bootstrap = Commit(branch_rule.bootstrap)
         if bootstrap:
             verify_branch(
                 project=project,
@@ -120,7 +123,7 @@ def verify_all(project: Project, report: Report, branch_rules: list[BranchRule])
         for branch in rule.branches(project.repo):
             head_hash = project.repo.references[branch].target
             head = Commit(head_hash)
-            bootstrap = Commit(rule.bootstrap_commit)
+            bootstrap = Commit(rule.bootstrap)
             verify_branch(
                 project=project,
                 branch=branch,

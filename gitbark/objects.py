@@ -81,23 +81,27 @@ class CommitRulesData:
 @dataclass
 class BranchRule:
     pattern: str
-    bootstrap_commit: str
-    fast_forward_only: bool
+    bootstrap: str
+    ff_only: bool
 
     @classmethod
     def parse(cls, branch_rule: dict) -> "BranchRule":
         try:
             pattern = branch_rule["pattern"]
-            bootstrap_commit = branch_rule["validate_from"]
-            fast_forward_only = branch_rule["allow_force_push"]
+            bootstrap = branch_rule["bootstrap"]
+            ff_only = branch_rule["ff_only"]
         except Exception:
             raise ValueError("Cannot parse branch rule!")
 
         return cls(
             pattern=pattern,
-            bootstrap_commit=bootstrap_commit,
-            fast_forward_only=fast_forward_only,
+            bootstrap=bootstrap,
+            ff_only=ff_only,
         )
+
+    @classmethod
+    def get_default(cls, pattern: str, bootstrap: str) -> "BranchRule":
+        return cls(pattern=pattern, bootstrap=bootstrap, ff_only=True)
 
     def branches(self, repo: Repository) -> list[str]:
         pattern = re.compile(f".*{self.pattern}")

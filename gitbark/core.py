@@ -237,7 +237,7 @@ def validate_branch_rules(
     # Validate branch_rules
     # TODO: make this part more modular
     passes_rules = True
-    if branch_rule.fast_forward_only:
+    if branch_rule.ff_only:
         prev_head_hash = project.repo.references[branch].target
         prev_head = Commit(prev_head_hash)
         if not is_descendant(prev_head, head):
