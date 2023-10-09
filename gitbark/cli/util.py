@@ -6,6 +6,7 @@ from gitbark.project import Project
 from gitbark.commands.verify import Report
 from gitbark.commands.install import is_installed
 from gitbark.util import cmd
+from gitbark.git import ReferenceUpdate
 from gitbark import globals
 
 from pkg_resources import EntryPoint
@@ -114,6 +115,10 @@ def is_local_branch(branch: str):
     return branch.startswith("refs/heads")
 
 
+def is_remote_branch(branch: str):
+    return branch.startswith("refs/remotes")
+
+
 def restore_incoming_changes():
     try:
         cmd("git", "restore", "--staged", ".")
@@ -122,7 +127,7 @@ def restore_incoming_changes():
         pass
 
 
-def handle_exit(report: Report):
+def handle_exit(report: Report, ref_update: ReferenceUpdate):
     exit_status = 0
     for branch_report in report.log:
         head = branch_report.head
@@ -131,6 +136,8 @@ def handle_exit(report: Report):
         if is_local_branch(branch):
             exit_status = 1
             error_type = "ERROR"
+        if is_remote_branch(branch):
+            exit_status = 2
             restore_incoming_changes()
         click.echo(f"{error_type}: Commit {head.hash} on {branch} is invalid!")
         for violation in head.violations:
