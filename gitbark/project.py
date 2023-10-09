@@ -116,7 +116,14 @@ class Project:
 
         if not os.path.exists(self.env_path):
             os.makedirs(self.env_path, exist_ok=True)
-            cmd(sys.executable, "-m", "venv", self.env_path, cwd=self.path)
+            cmd(
+                sys.executable,
+                "-m",
+                "venv",
+                "--without-pip",
+                self.env_path,
+                cwd=self.path,
+            )
 
         sys.path.append(self.get_env_site_packages())
 
@@ -141,8 +148,16 @@ class Project:
             )
 
     def install_bark_module(self, bark_module: str) -> None:
-        pip_path = os.path.join(self.env_path, "bin", "pip")
-        cmd(pip_path, "install", bark_module)
+        site_packages = self.get_env_site_packages()
+        cmd(
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
+            "--target",
+            site_packages,
+            bark_module,
+        )
 
     def get_env_site_packages(self) -> str:
         exec_path = os.path.join(self.env_path, "bin", "python")
