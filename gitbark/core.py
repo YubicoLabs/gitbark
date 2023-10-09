@@ -57,10 +57,6 @@ def validate_rules(
 def is_commit_valid(
     commit: Commit, bootstrap: Commit, branch: str, project: Project, on_valid
 ) -> bool:
-    if commit == bootstrap:
-        on_valid(commit)
-        return True
-
     cache = project.cache
     to_validate = [commit]
     while to_validate:
@@ -90,21 +86,10 @@ def is_commit_valid(
 
 def update_modules(project: Project, branch: str, commit: Commit):
     bark_modules = commit.get_bark_rules().modules
-    prev_bark_modules = [p.get_bark_rules().modules for p in commit.parents]
+    prev_bark_modules = [set(p.get_bark_rules().modules) for p in commit.parents]
 
-    update_required = False
-
-    for modules in prev_bark_modules:
-        if len(modules) != prev_bark_modules:
-            update_required = True
-        else:
-            modules.sort()
-            bark_modules.sort()
-            if not all(x is y for x, y in zip(bark_modules, modules)):
-                update_required = True
-
-    if update_required or len(prev_bark_modules) == 0:
-        for module in bark_modules:
+    for module in bark_modules:
+        if not prev_bark_modules or any(module not in p for p in prev_bark_modules):
             project.install_bark_module(module)
 
 
