@@ -93,7 +93,6 @@ def verify(
         return report
 
     bark_rules = get_bark_rules(project)
-    project.load_rule_entrypoints(bark_rules)
     branch_rules = bark_rules.branches
 
     if all:
