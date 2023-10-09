@@ -48,18 +48,8 @@ class CacheEntry:
 class Cache:
     def __init__(self, db_path: str) -> None:
         self.db_path = db_path
-        self.cache: dict[str, CacheEntry] = {}
 
     def get(self, key: str) -> Optional[CacheEntry]:
-        if self.has(key):
-            return self.cache.get(key)
-        else:
-            entry = self.get_from_db(key)
-            if entry:
-                self.set(key, entry.valid, entry.violations)
-            return entry
-
-    def get_from_db(self, key: str) -> Optional[CacheEntry]:
         with connect_db(self.db_path) as db:
             entry = db.execute(
                 "SELECT valid, violations FROM cache_entries WHERE commit_hash = ? ",
@@ -69,32 +59,27 @@ class Cache:
                 return CacheEntry.parse_from_db(entry)
             return None
 
-    def save_to_db(self, key: str, entry: CacheEntry) -> None:
+    def has(self, key: str):
         with connect_db(self.db_path) as db:
-            valid = int(entry.valid)
-            violations = json.dumps(entry.violations)
+            res = db.execute(
+                "SELECT EXISTS(SELECT 1 FROM cache_entries WHERE commit_hash = ?)",
+                (key,),
+            ).fetchone()
+        return bool(res[0])
+
+    def set(self, key: str, valid: bool, violations: list[str]):
+        entry = CacheEntry(valid, violations)
+        with connect_db(self.db_path) as db:
+            valid_int = int(entry.valid)
+            violations_json = json.dumps(entry.violations)
             db.execute(
                 "INSERT INTO cache_entries (commit_hash, valid, violations) "
                 "VALUES (?, ?, ?)",
-                [key, valid, violations],
+                [key, valid_int, violations_json],
             )
-
-    def is_empty(self) -> bool:
-        return len(self.cache) == 0
-
-    def has(self, key: str):
-        return key in self.cache
-
-    def set(self, key: str, valid: bool, violations: list[str]):
-        self.cache[key] = CacheEntry(valid, violations)
-
-    def dump(self) -> None:
-        for key, entry in self.cache.items():
-            self.save_to_db(key, entry)
 
 
 class PROJECT_FILES(str, Enum):
-    CACHE = "cache.pickle"
     BOOTSTRAP = "bootstrap"
     DB = "db.db"
 
@@ -166,4 +151,3 @@ class Project:
 
     def update(self) -> None:
         self.save_bootstrap()
-        self.cache.dump()

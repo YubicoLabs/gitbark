@@ -17,12 +17,14 @@ from .project import Cache, Project
 from .rule import get_rules
 from .util import cmd
 from .objects import BranchRule, BarkRules
+from functools import partial
+from typing import Callable
 
 BARK_RULES_BRANCH = "refs/heads/bark_rules"
 
 
 def nearest_valid_ancestors(
-    commit: Commit, cache: Cache, valid_ancestors=[]
+    commit: Commit, cache: Cache, valid_ancestors: list[Commit]
 ) -> list[Commit]:
     """Return the nearest valid ancestors"""
     parents = commit.parents
@@ -52,129 +54,41 @@ def validate_rules(
     return passes_rules
 
 
-def get_children_map(commit: Commit):
-    queue = [commit]
-    children: dict[str, list[Commit]] = {}
-    processed = set()
-    while len(queue) > 0:
-        current = queue.pop(0)
-        if current.hash not in processed:
-            processed.add(current.hash)
-            parents = current.parents
-            for parent in parents:
-                if parent.hash in children:
-                    children[parent.hash].append(current)
-                    queue.append(parent)
-                else:
-                    children[parent.hash] = [current]
-                    queue.append(parent)
-    return children
-
-
 def is_commit_valid(
-    commit: Commit, bootstrap: Commit, branch: str, project: Project
+    commit: Commit, bootstrap: Commit, branch: str, project: Project, on_valid
 ) -> bool:
-    cache = project.cache
-
-    value = cache.get(commit.hash)
-    if value:
-        commit.violations = value.violations
-        return value.valid
-
     if commit == bootstrap:
-        cache.set(commit.hash, True, commit.violations)
-        update_modules(commit, branch, project)
+        on_valid(commit)
         return True
 
-    validators = set()
-    for parent in commit.parents:
-        if is_commit_valid(parent, bootstrap, branch, project):
-            validators.add(parent)
-        else:
-            for validator in nearest_valid_ancestors(parent, project.cache):
-                validators.add(validator)
-
-    if not all(
-        validate_rules(commit, validator, project, branch) for validator in validators
-    ):
-        cache.set(commit.hash, False, commit.violations)
-        return False
-    else:
-        cache.set(commit.hash, True, commit.violations)
-        update_modules(commit, branch, project)
-        return True
-
-
-def is_commit_valid_iterative(
-    commit: Commit, bootstrap: Commit, branch: str, project: Project
-) -> bool:
     cache = project.cache
-
-    value = cache.get(commit.hash)
-    if value:
-        commit.violations = value.violations
-        return value.valid
-
-    if commit == bootstrap:
-        cache.set(commit.hash, True, commit.violations)
-        update_modules(commit, branch, project)
-        return True
-
-    commit_to_children = get_children_map(commit)
-
-    cache.set(bootstrap.hash, True, commit.violations)
-    queue = [bootstrap]
-
-    processed = set()
-    validated = set()
-    while len(queue) > 0:
-        current = queue.pop(0)
-        if current.hash not in processed:
-            processed.add(current.hash)
-            children = []
-            if current.hash in commit_to_children:
-                children = commit_to_children[current.hash]
-
-            for child in reversed(children):
-                if child.hash in validated:
-                    continue
-                parents = child.parents
-                validators = []
-                visited_validators = set()
-                for parent in parents:
-                    value = cache.get(parent.hash)
-                    if value:
-                        if value.valid:
-                            validators.append(parent)
-                            visited_validators.add(parent.hash)
-                        else:
-                            nearest_validators = nearest_valid_ancestors(
-                                parent, project.cache
-                            )
-                            for validator in nearest_validators:
-                                if validator.hash not in visited_validators:
-                                    validators.append(validator)
-                                    visited_validators.add(validator.hash)
-
-                if not all(
-                    validate_rules(child, validator, project, branch)
-                    for validator in validators
-                ):
-                    cache.set(child.hash, False, child.violations)
+    to_validate = [commit]
+    while to_validate:
+        c = to_validate.pop(0)
+        if not cache.has(c.hash):
+            if c == bootstrap:
+                cache.set(c.hash, True, [])
+                on_valid(c)
+            else:
+                parents = [p for p in c.parents if not cache.has(p.hash)]
+                if parents:
+                    to_validate.extend(parents)
+                    to_validate.append(c)
                 else:
-                    cache.set(child.hash, True, child.violations)
-                    update_modules(commit, branch, project)
-                validated.add(child.hash)
-                queue.append(child)
+                    validators = nearest_valid_ancestors(c, cache, [])
+                    valid = all(
+                        validate_rules(c, v, project, branch) for v in validators
+                    )
+                    if valid:
+                        on_valid(c)
+                    cache.set(c.hash, valid, c.violations)
 
-    value = cache.get(commit.hash)
-    return False if not value else value.valid
+    entry = cache.get(commit.hash)
+    assert entry is not None
+    return entry.valid
 
 
-def update_modules(commit: Commit, branch: str, project: Project):
-    if branch != BARK_RULES_BRANCH:
-        return
-
+def update_modules(project: Project, branch: str, commit: Commit):
     bark_modules = commit.get_bark_rules().modules
     prev_bark_modules = [p.get_bark_rules().modules for p in commit.parents]
 
@@ -184,8 +98,8 @@ def update_modules(commit: Commit, branch: str, project: Project):
         if len(modules) != prev_bark_modules:
             update_required = True
         else:
-            modules.sort(key=lambda x: x.repo)
-            bark_modules.sort(key=lambda x: x.repo)
+            modules.sort()
+            bark_modules.sort()
             if not all(x is y for x, y in zip(bark_modules, modules)):
                 update_required = True
 
@@ -198,12 +112,12 @@ def validate_commit_rules(
     project: Project, head: Commit, bootstrap: Commit, branch: str
 ) -> bool:
     """Validates commit rules on branch"""
-    count, _ = cmd("git", "rev-list", "--count", head.hash)
-    count = int(count)
-    if count > 999 and project.cache.is_empty():
-        return is_commit_valid_iterative(head, bootstrap, branch, project)
-    else:
-        return is_commit_valid(head, bootstrap, branch, project)
+    on_valid: Callable[[Commit], None] = lambda commit: None
+    if branch == BARK_RULES_BRANCH:
+        # Need to update modules on each validated commit
+        on_valid = partial(update_modules, project, branch)
+
+    return is_commit_valid(head, bootstrap, branch, project, on_valid)
 
 
 def get_bark_rules(project: Project) -> BarkRules:
