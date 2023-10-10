@@ -30,9 +30,12 @@ class CommitRuleData:
             return cls(id=commit_rule, args=None)
         try:
             # Rule has args
-            print("parse rule", commit_rule)
             rule_id, args = commit_rule.popitem()
-            assert not commit_rule  # Rule dict should have only single entry
+            if commit_rule:  # More keys, only valid if arg is None
+                if args is None:
+                    args = commit_rule
+                else:
+                    raise ValueError("Cannot parse commit rule!")
             return cls(id=rule_id, args=args)
         except Exception:
             raise ValueError("Cannot parse commit rule!")
