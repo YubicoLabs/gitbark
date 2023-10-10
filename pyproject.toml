@@ -18,6 +18,10 @@ pygit2 = "^1.12.1"
 [tool.poetry.scripts]
 bark = "gitbark.cli.__main__:main"
 
+[tool.poetry.plugins."bark_rules"]
+all = "gitbark.rule:AllRule"
+any = "gitbark.rule:AnyRule"
+
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.2.2"
 

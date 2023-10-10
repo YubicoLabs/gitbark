@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .objects import CommitRulesData, BarkRules
+from .objects import CommitRuleData, BarkRules
 from gitbark import globals
 
 from dataclasses import dataclass
@@ -67,13 +67,13 @@ class Commit:
     def add_rule_violation(self, violation: str) -> None:
         self.violations.append(violation)
 
-    def get_commit_rules(self) -> CommitRulesData:
+    def get_commit_rules(self) -> CommitRuleData:
         """Get the commit rules associated with a commit."""
         commit_rules_blob = self.__repo.revparse_single(
             f"{self.hash}:.gitbark/commit_rules.yaml"
         ).data
         commit_rules = yaml.safe_load(commit_rules_blob)
-        return CommitRulesData.parse(commit_rules)
+        return CommitRuleData.parse({"all": commit_rules["rules"]})
 
     def get_bark_rules(self) -> BarkRules:
         """Get the bark rule associated with a commit."""

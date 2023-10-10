@@ -14,11 +14,9 @@
 
 from ..git import Commit
 from ..project import Project
-from ..rule import get_rules
+from ..rule import get_rule
 
 
 def prepare_merge_msg(head: Commit, project: Project, commit_msg_file: str):
-    project.load_rule_entrypoints()
-
-    for rule in get_rules(head, project):
-        rule.prepare_merge_msg(commit_msg_file)
+    rule = get_rule(head, project)
+    rule.prepare_merge_msg(commit_msg_file)
