@@ -47,36 +47,37 @@ class CacheEntry:
 
 class Cache:
     def __init__(self, db_path: str) -> None:
-        self.db_path = db_path
+        self._db = sqlite3.connect(db_path)
 
     def get(self, key: str) -> Optional[CacheEntry]:
-        with connect_db(self.db_path) as db:
-            entry = db.execute(
-                "SELECT valid, violations FROM cache_entries WHERE commit_hash = ? ",
-                [key],
-            ).fetchone()
-            if entry:
-                return CacheEntry.parse_from_db(entry)
-            return None
+        entry = self._db.execute(
+            "SELECT valid, violations FROM cache_entries WHERE commit_hash = ? ",
+            [key],
+        ).fetchone()
+        if entry:
+            return CacheEntry.parse_from_db(entry)
+        return None
 
     def has(self, key: str):
-        with connect_db(self.db_path) as db:
-            res = db.execute(
-                "SELECT EXISTS(SELECT 1 FROM cache_entries WHERE commit_hash = ?)",
-                (key,),
-            ).fetchone()
+        res = self._db.execute(
+            "SELECT EXISTS(SELECT 1 FROM cache_entries WHERE commit_hash = ?)",
+            (key,),
+        ).fetchone()
         return bool(res[0])
 
     def set(self, key: str, valid: bool, violations: list[str]):
         entry = CacheEntry(valid, violations)
-        with connect_db(self.db_path) as db:
-            valid_int = int(entry.valid)
-            violations_json = json.dumps(entry.violations)
-            db.execute(
-                "INSERT INTO cache_entries (commit_hash, valid, violations) "
-                "VALUES (?, ?, ?)",
-                [key, valid_int, violations_json],
-            )
+        valid_int = int(entry.valid)
+        violations_json = json.dumps(entry.violations)
+        self._db.execute(
+            "INSERT INTO cache_entries (commit_hash, valid, violations) "
+            "VALUES (?, ?, ?)",
+            [key, valid_int, violations_json],
+        )
+
+    def close(self):
+        self._db.commit()
+        self._db.close()
 
 
 class PROJECT_FILES(str, Enum):
@@ -151,3 +152,4 @@ class Project:
 
     def update(self) -> None:
         self.save_bootstrap()
+        self.cache.close()
