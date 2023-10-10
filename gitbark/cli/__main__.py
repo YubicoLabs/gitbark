@@ -17,6 +17,7 @@ from gitbark.commands.install import is_installed, install as install_cmd
 from gitbark.commands.prepare_merge_msg import (
     prepare_merge_msg as prepare_merge_msg_cmd,
 )
+from gitbark.commands.setup import setup as setup_cmd
 
 from gitbark.core import BARK_RULES_BRANCH
 from gitbark.project import Project
@@ -52,6 +53,15 @@ def cli(ctx):
     ctx.obj["project"] = project
 
     globals.init(toplevel)
+
+
+@cli.command()
+@click.pass_context
+def setup(ctx):
+    """Setup GitBark in repo."""
+
+    project = ctx.obj["project"]
+    setup_cmd(project)
 
 
 @cli.command()
