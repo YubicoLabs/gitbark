@@ -60,7 +60,7 @@ def is_commit_valid(
     cache = project.cache
     to_validate = [commit]
     while to_validate:
-        c = to_validate.pop(0)
+        c = to_validate[-1]
         if not cache.has(c.hash):
             if c == bootstrap:
                 cache.set(c.hash, True, [])
@@ -69,14 +69,17 @@ def is_commit_valid(
                 parents = [p for p in c.parents if not cache.has(p.hash)]
                 if parents:
                     to_validate.extend(parents)
-                    to_validate.append(c)
                 else:
+                    to_validate.pop()
                     validators = nearest_valid_ancestors(c, cache, [])
-                    valid = all(
-                        validate_rules(c, v, project, branch) for v in validators
-                    )
-                    if valid:
-                        on_valid(c)
+                    if validators:
+                        valid = all(
+                            validate_rules(c, v, project, branch) for v in validators
+                        )
+                        if valid:
+                            on_valid(c)
+                    else:
+                        valid = False
                     cache.set(c.hash, valid, c.violations)
 
     entry = cache.get(commit.hash)
