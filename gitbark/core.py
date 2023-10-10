@@ -43,7 +43,7 @@ def validate_rules(
     validator: Commit,
     project: Project,
     branch: str,
-):
+) -> bool:
     rules = get_rules(validator, project)
     passes_rules = True
     for rule in rules:
@@ -55,7 +55,11 @@ def validate_rules(
 
 
 def is_commit_valid(
-    commit: Commit, bootstrap: Commit, branch: str, project: Project, on_valid
+    commit: Commit,
+    bootstrap: Commit,
+    branch: str,
+    project: Project,
+    on_valid: Callable[[Commit], None],
 ) -> bool:
     cache = project.cache
     to_validate = [commit]
@@ -87,7 +91,7 @@ def is_commit_valid(
     return entry.valid
 
 
-def update_modules(project: Project, branch: str, commit: Commit):
+def update_modules(project: Project, branch: str, commit: Commit) -> None:
     bark_modules = commit.get_bark_rules().modules
     prev_bark_modules = [set(p.get_bark_rules().modules) for p in commit.parents]
 
@@ -116,7 +120,7 @@ def get_bark_rules(project: Project) -> BarkRules:
     return branch_rules_head.get_bark_rules()
 
 
-def is_descendant(prev: Commit, new: Commit):
+def is_descendant(prev: Commit, new: Commit) -> bool:
     """Checks that the current tip is a descendant of the old tip"""
 
     _, exit_status = cmd(
