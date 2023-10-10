@@ -47,7 +47,8 @@ def validate_rules(
     rule = get_rule(validator, project)
     if rule.validate(commit):
         return True
-    commit.add_rule_violation(rule.get_violation())
+    for violation in rule.get_violations():
+        commit.add_rule_violation(violation)
     return False
 
 

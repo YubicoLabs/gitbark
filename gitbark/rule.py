@@ -35,17 +35,17 @@ class Rule(ABC):
         self.validator = commit
         self.cache = cache
         self.repo = repo
-        self.violation: str = ""
+        self.violations: list[str] = []
         self._parse_args(args)
 
     def _parse_args(self, args: Any) -> None:
         pass
 
     def add_violation(self, violation: str) -> None:
-        self.violation = violation
+        self.violations.append(violation)
 
-    def get_violation(self) -> str:
-        return self.violation
+    def get_violations(self) -> list[str]:
+        return self.violations
 
     @abstractmethod
     def validate(self, commit: Commit) -> bool:
@@ -67,9 +67,11 @@ class _CompositeRule(Rule):
             for data in args
         ]
 
-    def get_violation(self):
-        violations = [rule.get_violation() for rule in self.sub_rules]
-        return " and ".join(violations)
+    def get_violations(self):
+        violations = []
+        for rule in self.sub_rules:
+            violations.extend(rule.get_violations())
+        return violations
 
     def prepare_merge_msg(self, commit_msg_file: str) -> None:
         for rule in self.sub_rules:
@@ -78,7 +80,8 @@ class _CompositeRule(Rule):
 
 class AllRule(_CompositeRule):
     def validate(self, commit: Commit) -> bool:
-        return all(rule.validate(commit) for rule in self.sub_rules)
+        # N.B. Make sure all rules validate without short-circuit logic.
+        return all([rule.validate(commit) for rule in self.sub_rules])
 
 
 class AnyRule(_CompositeRule):
