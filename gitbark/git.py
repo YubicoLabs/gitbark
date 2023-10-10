@@ -72,8 +72,12 @@ class Commit:
         commit_rules_blob = self.__repo.revparse_single(
             f"{self.hash}:.gitbark/commit_rules.yaml"
         ).data
-        commit_rules = yaml.safe_load(commit_rules_blob)
-        return CommitRuleData.parse({"all": commit_rules["rules"]})
+        rules = yaml.safe_load(commit_rules_blob)["rules"]
+        if len(rules) > 1:
+            rules = {"all": rules}
+        else:
+            rules = rules[0]
+        return CommitRuleData.parse(rules)
 
     def get_bark_rules(self) -> BarkRules:
         """Get the bark rule associated with a commit."""

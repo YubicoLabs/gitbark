@@ -66,6 +66,8 @@ class _CompositeRule(Rule):
             )
             for data in args
         ]
+        if len(self.sub_rules) < 2:
+            raise ValueError("Composite rule must contain at least 2 child rules!")
 
     def get_violations(self):
         violations = []
