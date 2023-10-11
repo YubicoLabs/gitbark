@@ -14,7 +14,7 @@
 
 from .git import Commit
 from .project import Cache, Project
-from .rule import get_rules
+from .rule import get_rule
 from .util import cmd
 from .objects import BranchRule, BarkRules
 from functools import partial
@@ -44,14 +44,12 @@ def validate_rules(
     project: Project,
     branch: str,
 ) -> bool:
-    rules = get_rules(validator, project)
-    passes_rules = True
-    for rule in rules:
-        if not rule.validate(commit):
-            commit.add_rule_violation(rule.get_violation())
-            passes_rules = False
-
-    return passes_rules
+    rule = get_rule(validator, project)
+    if rule.validate(commit):
+        return True
+    for violation in rule.get_violations():
+        commit.add_rule_violation(violation)
+    return False
 
 
 def is_commit_valid(

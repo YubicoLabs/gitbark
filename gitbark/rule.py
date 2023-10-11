@@ -13,12 +13,12 @@
 # limitations under the License.
 
 from .git import Commit
-from .objects import CompositeCommitRuleData, CommitRuleData
+from .objects import CommitRuleData
 from .project import Cache, Project
 
 from abc import ABC, abstractmethod
 from pygit2 import Repository
-from typing import Union, Any
+from typing import Any
 from importlib.metadata import entry_points
 
 
@@ -29,20 +29,23 @@ class Rule(ABC):
         commit: Commit,
         cache: Cache,
         repo: Repository,
-        args: dict[str, Any] = {},
+        args: Any,
     ) -> None:
         self.name = name
         self.validator = commit
-        self.args = args
         self.cache = cache
         self.repo = repo
-        self.violation: str = ""
+        self.violations: list[str] = []
+        self._parse_args(args)
+
+    def _parse_args(self, args: Any) -> None:
+        pass
 
     def add_violation(self, violation: str) -> None:
-        self.violation = violation
+        self.violations.append(violation)
 
-    def get_violation(self) -> str:
-        return self.violation
+    def get_violations(self) -> list[str]:
+        return self.violations
 
     @abstractmethod
     def validate(self, commit: Commit) -> bool:
@@ -52,43 +55,45 @@ class Rule(ABC):
         pass
 
 
-class CompositeRule(Rule):
-    def __init__(self) -> None:
-        self.violation: str = ""
-        self.sub_rules: list[Rule] = []
+class _CompositeRule(Rule):
+    def _parse_args(self, args: Any):
+        self.sub_rules = [
+            create_rule(
+                CommitRuleData.parse(data),
+                self.validator,
+                self.cache,
+                self.repo,
+            )
+            for data in args
+        ]
+        if len(self.sub_rules) < 2:
+            raise ValueError("Composite rule must contain at least 2 child rules!")
 
-    def add_sub_rule(self, rule: Rule):
-        self.sub_rules.append(rule)
+    def get_violations(self):
+        violations = []
+        for rule in self.sub_rules:
+            violations.extend(rule.get_violations())
+        return violations
 
+    def prepare_merge_msg(self, commit_msg_file: str) -> None:
+        for rule in self.sub_rules:
+            rule.prepare_merge_msg(commit_msg_file)
+
+
+class AllRule(_CompositeRule):
     def validate(self, commit: Commit) -> bool:
-        if not any(rule.validate(commit) for rule in self.sub_rules):
-            return False
-        return True
-
-    def get_violation(self):
-        violations = [rule.get_violation() for rule in self.sub_rules]
-        return " and ".join(violations)
+        # N.B. Make sure all rules validate without short-circuit logic.
+        return all([rule.validate(commit) for rule in self.sub_rules])
 
 
-def get_rules(commit: Commit, project: Project) -> list[Rule]:
-    rules: list[Union[Rule, CompositeRule]] = []
+class AnyRule(_CompositeRule):
+    def validate(self, commit: Commit) -> bool:
+        return any(rule.validate(commit) for rule in self.sub_rules)
 
-    for rule in commit.get_commit_rules().rules:
-        if isinstance(rule, CompositeCommitRuleData):
-            composite_rule = CompositeRule()
-            for sub_rule in rule.rules:
-                composite_rule.add_sub_rule(
-                    create_rule(
-                        sub_rule,
-                        commit,
-                        project.cache,
-                        project.repo,
-                    )
-                )
-            rules.append(composite_rule)
-        else:
-            rules.append(create_rule(rule, commit, project.cache, project.repo))
-    return rules
+
+def get_rule(commit: Commit, project: Project) -> Rule:
+    rule_data = commit.get_commit_rules()
+    return create_rule(rule_data, commit, project.cache, project.repo)
 
 
 def create_rule(

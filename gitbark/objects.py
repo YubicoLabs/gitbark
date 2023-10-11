@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Union
+from typing import Union, Any
 from pygit2 import Repository
 import re
 
@@ -21,61 +21,24 @@ import re
 @dataclass
 class CommitRuleData:
     id: str
-    args: dict
+    args: Any
 
     @classmethod
-    def parse(cls, commit_rule: dict) -> "CommitRuleData":
+    def parse(cls, commit_rule: Union[str, dict]) -> "CommitRuleData":
+        if isinstance(commit_rule, str):
+            # No args, just the rule name
+            return cls(id=commit_rule, args=None)
         try:
-            id = commit_rule["rule"]
-            args = cls.parse_args(commit_rule["args"])
+            # Rule has args
+            rule_id, args = commit_rule.popitem()
+            if commit_rule:  # More keys, only valid if arg is None
+                if args is None:
+                    args = commit_rule
+                else:
+                    raise ValueError("Cannot parse commit rule!")
+            return cls(id=rule_id, args=args)
         except Exception:
             raise ValueError("Cannot parse commit rule!")
-
-        return cls(id=id, args=args)
-
-    @staticmethod
-    def parse_args(args: list[str]) -> dict:
-        args_new = {}
-        for arg in args:
-            name, val = arg.split("=")
-            args_new[name] = val
-
-        return args_new
-
-
-@dataclass
-class CompositeCommitRuleData:
-    rules: list[CommitRuleData]
-
-    @classmethod
-    def parse(cls, commit_rules: list[dict]) -> "CompositeCommitRuleData":
-        rules = []
-        for rule in commit_rules:
-            rules.append(CommitRuleData.parse(rule))
-
-        return cls(rules=rules)
-
-
-@dataclass
-class CommitRulesData:
-    rules: list[Union[CommitRuleData, CompositeCommitRuleData]]
-
-    @classmethod
-    def parse(cls, commit_rules: dict) -> "CommitRulesData":
-        rules: list[Union[CommitRuleData, CompositeCommitRuleData]] = []
-        try:
-            for rule in commit_rules["rules"]:
-                if "any" in rule:
-                    composite_commit_rule = CompositeCommitRuleData.parse(rule["any"])
-                    rules.append(composite_commit_rule)
-                else:
-                    commit_rule = CommitRuleData.parse(rule)
-                    rules.append(commit_rule)
-
-        except Exception as e:
-            raise e
-
-        return cls(rules=rules)
 
 
 @dataclass
