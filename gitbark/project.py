@@ -14,15 +14,13 @@
 
 from .util import cmd
 
-from dataclasses import dataclass
-from typing import Generator, Optional, Any
+from typing import Generator, Optional
 from enum import Enum
 from pygit2 import Repository
 import os
 import sqlite3
 import contextlib
 import sys
-import json
 
 
 @contextlib.contextmanager
@@ -33,49 +31,37 @@ def connect_db(db_path: str) -> Generator[sqlite3.Connection, None, None]:
             yield db
 
 
-@dataclass
-class CacheEntry:
-    valid: bool
-    violations: list[str]
-
-    @classmethod
-    def parse_from_db(cls, entry: Any) -> "CacheEntry":
-        valid = bool(entry[0])
-        violations = json.loads(entry[1])
-        return cls(valid=valid, violations=violations)
-
-
 class Cache:
     def __init__(self, db_path: str) -> None:
         self._db = sqlite3.connect(db_path)
 
-    def get(self, key: str) -> Optional[CacheEntry]:
+    def get(self, key: str) -> Optional[bool]:
         entry = self._db.execute(
-            "SELECT valid, violations FROM cache_entries WHERE commit_hash = ? ",
+            "SELECT valid FROM cache_entries WHERE commit_hash = ? ",
             [key],
         ).fetchone()
-        if entry:
-            return CacheEntry.parse_from_db(entry)
-        return None
+        return bool(entry[0]) if entry else None
 
-    def has(self, key: str):
+    def has(self, key: str) -> bool:
         res = self._db.execute(
             "SELECT EXISTS(SELECT 1 FROM cache_entries WHERE commit_hash = ?)",
-            (key,),
+            [key],
         ).fetchone()
         return bool(res[0])
 
-    def set(self, key: str, valid: bool, violations: list[str]):
-        entry = CacheEntry(valid, violations)
-        valid_int = int(entry.valid)
-        violations_json = json.dumps(entry.violations)
+    def set(self, key: str, valid: bool) -> None:
         self._db.execute(
-            "INSERT INTO cache_entries (commit_hash, valid, violations) "
-            "VALUES (?, ?, ?)",
-            [key, valid_int, violations_json],
+            "INSERT INTO cache_entries (commit_hash, valid) " "VALUES (?, ?)",
+            [key, int(valid)],
         )
 
-    def close(self):
+    def remove(self, key: str) -> None:
+        self._db.execute(
+            "DELETE FROM cache_entries WHERE commit_hash = ? ",
+            [key],
+        )
+
+    def close(self) -> None:
         self._db.commit()
         self._db.close()
 
@@ -120,7 +106,6 @@ class Project:
                 CREATE TABLE cache_entries (
                     commit_hash TEXT NOT NULL,
                     valid INTEGER NOT NULL,
-                    violations TEXT NOT NULL,
                     PRIMARY KEY (commit_hash) ON CONFLICT IGNORE
                 );
                 """

@@ -29,8 +29,7 @@ def nearest_valid_ancestors(
     """Return the nearest valid ancestors"""
     parents = commit.parents
     for parent in parents:
-        value = cache.get(parent.hash)
-        if value and value.valid:
+        if cache.get(parent.hash):
             valid_ancestors.append(parent)
         else:
             _valid_ancestors = nearest_valid_ancestors(parent, cache, valid_ancestors)
@@ -42,7 +41,6 @@ def validate_rules(
     commit: Commit,
     validator: Commit,
     project: Project,
-    branch: str,
 ) -> bool:
     rule = get_rule(validator, project)
     if rule.validate(commit):
@@ -55,17 +53,21 @@ def validate_rules(
 def is_commit_valid(
     commit: Commit,
     bootstrap: Commit,
-    branch: str,
     project: Project,
     on_valid: Callable[[Commit], None],
 ) -> bool:
     cache = project.cache
+
+    # Re-validate if previously invalid
+    if cache.get(commit.hash) is False:
+        cache.remove(commit.hash)
+
     to_validate = [commit]
     while to_validate:
         c = to_validate.pop()
         if not cache.has(c.hash):
             if c == bootstrap:
-                cache.set(c.hash, True, [])
+                cache.set(c.hash, True)
                 on_valid(c)
             else:
                 parents = [p for p in c.parents if not cache.has(p.hash)]
@@ -75,18 +77,16 @@ def is_commit_valid(
                 else:
                     validators = nearest_valid_ancestors(c, cache, [])
                     if validators:
-                        valid = all(
-                            validate_rules(c, v, project, branch) for v in validators
-                        )
+                        valid = all(validate_rules(c, v, project) for v in validators)
                         if valid:
                             on_valid(c)
                     else:
                         valid = False
-                    cache.set(c.hash, valid, c.violations)
+                    cache.set(c.hash, valid)
 
-    entry = cache.get(commit.hash)
-    assert entry is not None
-    return entry.valid
+    result = cache.get(commit.hash)
+    assert result is not None
+    return result
 
 
 def update_modules(project: Project, branch: str, commit: Commit) -> None:
@@ -107,7 +107,7 @@ def validate_commit_rules(
         # Need to update modules on each validated commit
         on_valid = partial(update_modules, project, branch)
 
-    return is_commit_valid(head, bootstrap, branch, project, on_valid)
+    return is_commit_valid(head, bootstrap, project, on_valid)
 
 
 def get_bark_rules(project: Project) -> BarkRules:
