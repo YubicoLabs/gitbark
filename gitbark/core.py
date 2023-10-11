@@ -23,22 +23,20 @@ from typing import Callable, Optional
 BARK_RULES_BRANCH = "refs/heads/bark_rules"
 
 
-def nearest_valid_ancestors(
-    commit: Commit, cache: Cache, valid_ancestors: list[Commit]
-) -> list[Commit]:
+def nearest_valid_ancestors(commit: Commit, cache: Cache) -> set[Commit]:
     """Return the nearest valid ancestors"""
     parents = commit.parents
+    valid_ancestors = set()
     for parent in parents:
         if cache.get(parent.hash):
-            valid_ancestors.append(parent)
+            valid_ancestors.add(parent)
         else:
-            _valid_ancestors = nearest_valid_ancestors(parent, cache, valid_ancestors)
-            valid_ancestors.extend(_valid_ancestors)
+            valid_ancestors.update(nearest_valid_ancestors(parent, cache))
     return valid_ancestors
 
 
 def validate_rules(commit: Commit, project: Project) -> None:
-    validators = nearest_valid_ancestors(commit, project.cache, [])
+    validators = nearest_valid_ancestors(commit, project.cache)
     if not validators:
         raise RuleViolation("No valid ancestors")
 
@@ -51,7 +49,7 @@ def validate_rules(commit: Commit, project: Project) -> None:
             *[get_rule(v, project) for v in validators],
         )
     else:
-        rule = get_rule(validators[0], project)
+        rule = get_rule(validators.pop(), project)
     rule.validate(commit)
 
 
