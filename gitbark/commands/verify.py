@@ -20,46 +20,21 @@ from ..core import (
 )
 from ..objects import BranchRule
 from ..git import Commit
+from ..rule import RuleViolation
 from ..project import Project
 
 from typing import Optional
-from dataclasses import dataclass
 
 
-@dataclass
-class BranchReport:
-    branch: str
-    head: Commit
-    violations: list[str]
-
-
-class Report:
-    def __init__(self) -> None:
-        self.log: list[BranchReport] = []
-
-    def is_repo_valid(self):
-        return len(self.log) == 0
-
-    def add_violations(self, branch: str, head: Commit):
-        branch_report = BranchReport(
-            branch=branch, head=head, violations=head.violations
-        )
-        self.log.append(branch_report)
-
-
-def verify_bark_rules(
-    project: Project,
-    report: Report,
-):
+def verify_bark_rules(project: Project):
     """Verifies the bark_rules branch."""
     bootstrap = Commit(project.bootstrap)
     head = Commit(project.repo.references[BARK_RULES_BRANCH].target)
-    return verify_branch(
+    verify_branch(
         project=project,
         branch=BARK_RULES_BRANCH,
         head=head,
         bootstrap=bootstrap,
-        report=report,
     )
 
 
@@ -81,23 +56,20 @@ def verify(
     head: Optional[Commit] = None,
     bootstrap: Optional[Commit] = None,
     all: bool = False,
-) -> Report:
+) -> None:
     """Verifies a branch or the entire repository.
 
     If `all` is set, the entire repository will be validated. Otherwise
     `branch` will be validated.
     """
-    report = Report()
-
-    if not verify_bark_rules(project, report):
-        return report
+    verify_bark_rules(project)
 
     bark_rules = get_bark_rules(project)
     branch_rules = bark_rules.branches
 
     if all:
         # Verify all branches matching branch_rules
-        verify_all(project, report, branch_rules)
+        verify_all(project, branch_rules)
     elif branch and head:
         # Verify target branch
         branch_rule = get_branch_rule(project, branch, branch_rules)
@@ -110,29 +82,29 @@ def verify(
                 head=head,
                 bootstrap=bootstrap,
                 branch_rule=branch_rule,
-                report=report,
             )
 
-    return report
 
-
-def verify_all(project: Project, report: Report, branch_rules: list[BranchRule]):
+def verify_all(project: Project, branch_rules: list[BranchRule]):
     """Verify all branches matching branch_rules."""
+    violations = []
     for rule in branch_rules:
         for branch in rule.branches(project.repo):
             head_hash = project.repo.references[branch].target
             head = Commit(head_hash)
             bootstrap = Commit(rule.bootstrap)
-            verify_branch(
-                project=project,
-                branch=branch,
-                head=head,
-                bootstrap=bootstrap,
-                report=report,
-                branch_rule=rule,
-            )
-
-    return report
+            try:
+                verify_branch(
+                    project=project,
+                    branch=branch,
+                    head=head,
+                    bootstrap=bootstrap,
+                    branch_rule=rule,
+                )
+            except RuleViolation as e:
+                violations.append(RuleViolation(f"Validation errors in {branch}", [e]))
+    if violations:
+        raise RuleViolation("Not all branches were valid", violations)
 
 
 def verify_branch(
@@ -140,16 +112,10 @@ def verify_branch(
     branch: str,
     head: Commit,
     bootstrap: Commit,
-    report: Report,
     branch_rule: Optional[BranchRule] = None,
-) -> bool:
+) -> None:
     """Verify branch against branch rules and commit rules."""
-    if branch_rule and not validate_branch_rules(project, head, branch, branch_rule):
-        report.add_violations(branch, head)
-        return False
+    if branch_rule:
+        validate_branch_rules(project, head, branch, branch_rule)
 
-    if not validate_commit_rules(project, head, bootstrap, branch):
-        report.add_violations(branch, head)
-        return False
-
-    return True
+    validate_commit_rules(project, head, bootstrap, branch)

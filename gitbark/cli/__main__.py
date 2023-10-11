@@ -20,13 +20,14 @@ from gitbark.commands.prepare_merge_msg import (
 
 from gitbark.core import BARK_RULES_BRANCH
 from gitbark.project import Project
+from gitbark.rule import RuleViolation
 from gitbark.util import cmd
 from gitbark.git import Commit, ReferenceUpdate
 from .util import (
     BarkContextObject,
     click_callback,
     CliFail,
-    handle_exit,
+    pp_violation,
     get_root,
     _add_subcommands,
 )
@@ -81,13 +82,14 @@ def install(ctx):
         )
         project.bootstrap = root_commit
 
-    report = install_cmd(project)
-    project.update()
-
-    if report.is_repo_valid():
+    try:
+        install_cmd(project)
         click.echo("Installed GitBark successfully!")
-
-    handle_exit(report)
+    except RuleViolation as e:
+        pp_violation(e)
+        sys.exit(1)
+    finally:
+        project.update()
 
 
 @click_callback()
@@ -173,7 +175,7 @@ def verify(ctx, branch, ref_update, all, bootstrap):
     project = ctx.obj["project"]
     if not is_installed(project):
         click.echo('Error: Bark is not installed! Run "bark install" first!')
-        exit(1)
+        sys.exit(1)
 
     head = None
     if not all:
@@ -182,15 +184,18 @@ def verify(ctx, branch, ref_update, all, bootstrap):
     if ref_update:
         branch = ref_update.ref_name
 
-    report = verify_cmd(project, branch, head, bootstrap, all)
-    project.update()
-    if report.is_repo_valid():
+    try:
+        verify_cmd(project, branch, head, bootstrap, all)
         if all:
             click.echo("Repository is in valid state!")
         elif not ref_update:
             click.echo(f"{branch} is in a valid state!")
-
-    handle_exit(report)
+    except RuleViolation as e:
+        # TODO: Error message here?
+        pp_violation(e)
+        sys.exit(1)
+    finally:
+        project.update()
 
 
 @cli.command(hidden=True)
