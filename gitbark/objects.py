@@ -30,7 +30,7 @@ class CommitRuleData:
             return cls(id=commit_rule, args=None)
         try:
             # Rule has args
-            rule_id, args = commit_rule.popitem()
+            rule_id, args = (k := next(iter(commit_rule)), commit_rule.pop(k))
             if commit_rule:  # More keys, only valid if arg is None
                 if args is None:
                     args = commit_rule
