@@ -14,11 +14,11 @@
 
 from .git import Commit
 from .project import Cache, Project
-from .rule import get_rule
+from .rule import get_rule, RuleViolation, AllRule
 from .util import cmd
 from .objects import BranchRule, BarkRules
 from functools import partial
-from typing import Callable
+from typing import Callable, Optional
 
 BARK_RULES_BRANCH = "refs/heads/bark_rules"
 
@@ -37,31 +37,37 @@ def nearest_valid_ancestors(
     return valid_ancestors
 
 
-def validate_rules(
-    commit: Commit,
-    validator: Commit,
-    project: Project,
-) -> bool:
-    rule = get_rule(validator, project)
-    if rule.validate(commit):
-        return True
-    for violation in rule.get_violations():
-        commit.add_rule_violation(violation)
-    return False
+def validate_rules(commit: Commit, project: Project) -> None:
+    validators = nearest_valid_ancestors(commit, project.cache, [])
+    if not validators:
+        raise RuleViolation("No valid ancestors")
+
+    if len(validators) > 1:
+        rule = AllRule.of(
+            "all",
+            commit,
+            project.cache,
+            project.repo,
+            *[get_rule(v, project) for v in validators],
+        )
+    else:
+        rule = get_rule(validators[0], project)
+    rule.validate(commit)
 
 
-def is_commit_valid(
+def validate_commit(
     commit: Commit,
     bootstrap: Commit,
     project: Project,
     on_valid: Callable[[Commit], None],
-) -> bool:
+) -> None:
     cache = project.cache
 
     # Re-validate if previously invalid
     if cache.get(commit.hash) is False:
         cache.remove(commit.hash)
 
+    violation: Optional[RuleViolation] = None
     to_validate = [commit]
     while to_validate:
         c = to_validate.pop()
@@ -75,18 +81,18 @@ def is_commit_valid(
                     to_validate.append(c)
                     to_validate.extend(parents)
                 else:
-                    validators = nearest_valid_ancestors(c, cache, [])
-                    if validators:
-                        valid = all(validate_rules(c, v, project) for v in validators)
-                        if valid:
-                            on_valid(c)
-                    else:
-                        valid = False
-                    cache.set(c.hash, valid)
+                    try:
+                        validate_rules(c, project)
+                        on_valid(c)
+                        cache.set(c.hash, True)
+                    except RuleViolation as e:
+                        violation = e
+                        cache.set(c.hash, False)
 
-    result = cache.get(commit.hash)
-    assert result is not None
-    return result
+    if not cache.get(commit.hash):
+        # N.B. last commit to be validated was 'commit'
+        assert violation is not None
+        raise violation
 
 
 def update_modules(project: Project, branch: str, commit: Commit) -> None:
@@ -100,14 +106,14 @@ def update_modules(project: Project, branch: str, commit: Commit) -> None:
 
 def validate_commit_rules(
     project: Project, head: Commit, bootstrap: Commit, branch: str
-) -> bool:
+) -> None:
     """Validates commit rules on branch"""
     on_valid: Callable[[Commit], None] = lambda commit: None
     if branch == BARK_RULES_BRANCH:
         # Need to update modules on each validated commit
         on_valid = partial(update_modules, project, branch)
 
-    return is_commit_valid(head, bootstrap, project, on_valid)
+    validate_commit(head, bootstrap, project, on_valid)
 
 
 def get_bark_rules(project: Project) -> BarkRules:
@@ -133,15 +139,11 @@ def is_descendant(prev: Commit, new: Commit) -> bool:
 
 def validate_branch_rules(
     project: Project, head: Commit, branch: str, branch_rule: BranchRule
-) -> bool:
+) -> None:
     # Validate branch_rules
     # TODO: make this part more modular
-    passes_rules = True
     if branch_rule.ff_only:
         prev_head_hash = project.repo.references[branch].target
         prev_head = Commit(prev_head_hash)
         if not is_descendant(prev_head, head):
-            head.add_rule_violation(f"Commit is not a descendant of {prev_head.hash}")
-            passes_rules = False
-
-    return passes_rules
+            raise RuleViolation(f"Commit is not a descendant of {prev_head.hash}")

@@ -2,8 +2,8 @@ from collections import OrderedDict
 from collections.abc import MutableMapping
 
 from gitbark.project import Project
-from gitbark.commands.verify import Report
 from gitbark.commands.install import is_installed
+from gitbark.rule import RuleViolation
 from gitbark.util import cmd
 from gitbark import globals
 
@@ -118,18 +118,10 @@ def restore_incoming_changes():
         pass
 
 
-def handle_exit(report: Report):
-    exit_status = 0
-    for branch_report in report.log:
-        head = branch_report.head
-        branch = branch_report.branch
-        if is_local_branch(branch):
-            exit_status = 1
-            error_type = "ERROR"
-        if is_remote_branch(branch):
-            error_type = "WARNING"
-            restore_incoming_changes()
-        click.echo(f"{error_type}: Commit {head.hash} on {branch} is invalid!")
-        for violation in head.violations:
-            click.echo("  {0} {1}".format("-", violation))
-    exit(exit_status)
+def pp_violation(violation: RuleViolation, indent: int = 0) -> None:
+    if indent:
+        click.echo(("  " * (indent - 1)) + " - " + violation.message)
+    else:
+        click.echo(violation.message)
+    for sub in violation.sub_violations:
+        pp_violation(sub, indent + 1)

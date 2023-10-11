@@ -18,14 +18,22 @@ from .project import Cache, Project
 
 from abc import ABC, abstractmethod
 from pygit2 import Repository
-from typing import Any
+from typing import Any, Optional
 from importlib.metadata import entry_points
+
+
+class RuleViolation(Exception):
+    def __init__(
+        self, message: str, sub_violations: Optional[list["RuleViolation"]] = None
+    ):
+        self.message = message
+        self.sub_violations = sub_violations or []
 
 
 class Rule(ABC):
     def __init__(
         self,
-        name: str,
+        name: str,  # TODO: remove
         commit: Commit,
         cache: Cache,
         repo: Repository,
@@ -41,38 +49,45 @@ class Rule(ABC):
     def _parse_args(self, args: Any) -> None:
         pass
 
-    def add_violation(self, violation: str) -> None:
-        self.violations.append(violation)
-
-    def get_violations(self) -> list[str]:
-        return self.violations
-
     @abstractmethod
-    def validate(self, commit: Commit) -> bool:
-        pass
+    def validate(self, commit: Commit) -> None:
+        raise RuleViolation(f"{self}.validate is not defined")
 
     def prepare_merge_msg(self, commit_msg_file: str) -> None:
         pass
 
 
+_COMPOSITE_SENTINEL = object()
+
+
 class _CompositeRule(Rule):
     def _parse_args(self, args: Any):
-        self.sub_rules = [
-            create_rule(
-                CommitRuleData.parse(data),
-                self.validator,
-                self.cache,
-                self.repo,
-            )
-            for data in args
-        ]
-        if len(self.sub_rules) < 2:
-            raise ValueError("Composite rule must contain at least 2 child rules!")
+        if args is not _COMPOSITE_SENTINEL:
+            self.sub_rules = [
+                create_rule(
+                    CommitRuleData.parse(data),
+                    self.validator,
+                    self.cache,
+                    self.repo,
+                )
+                for data in args
+            ]
+            if len(self.sub_rules) < 2:
+                raise ValueError("Composite rule must contain at least 2 child rules!")
 
-    def get_violations(self):
+    @classmethod
+    def of(cls, name, commit, cache, repo, *rules: Rule) -> Rule:
+        rule = cls(name, commit, cache, repo, _COMPOSITE_SENTINEL)
+        rule.sub_rules = list(rules)
+        return rule
+
+    def _validate_children(self, commit: Commit) -> list[RuleViolation]:
         violations = []
         for rule in self.sub_rules:
-            violations.extend(rule.get_violations())
+            try:
+                rule.validate(commit)
+            except RuleViolation as e:
+                violations.append(e)
         return violations
 
     def prepare_merge_msg(self, commit_msg_file: str) -> None:
@@ -81,14 +96,23 @@ class _CompositeRule(Rule):
 
 
 class AllRule(_CompositeRule):
-    def validate(self, commit: Commit) -> bool:
-        # N.B. Make sure all rules validate without short-circuit logic.
-        return all([rule.validate(commit) for rule in self.sub_rules])
+    def validate(self, commit: Commit):
+        violations = self._validate_children(commit)
+        if violations:
+            if len(violations) == 1:
+                raise violations[0]
+            raise RuleViolation(
+                "All of the following conditions must be met:", violations
+            )
 
 
 class AnyRule(_CompositeRule):
-    def validate(self, commit: Commit) -> bool:
-        return any(rule.validate(commit) for rule in self.sub_rules)
+    def validate(self, commit: Commit):
+        violations = self._validate_children(commit)
+        if len(self.sub_rules) - len(violations) <= 0:
+            raise RuleViolation(
+                "One of the following conditions must be met:", violations
+            )
 
 
 def get_rule(commit: Commit, project: Project) -> Rule:
