@@ -75,8 +75,10 @@ class Commit:
         rules = yaml.safe_load(commit_rules_blob)["rules"]
         if len(rules) > 1:
             rules = {"all": rules}
-        else:
+        elif len(rules) == 1:
             rules = rules[0]
+        else:
+            rules = {"none": None}
         return CommitRuleData.parse(rules)
 
     def get_bark_rules(self) -> BarkRules:

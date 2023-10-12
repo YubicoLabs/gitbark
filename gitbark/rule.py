@@ -115,6 +115,11 @@ class AnyRule(_CompositeRule):
             )
 
 
+class NoneRule(Rule):
+    def validate(self, commit: Commit) -> None:
+        pass
+
+
 def get_rule(commit: Commit, project: Project) -> Rule:
     rule_data = commit.get_commit_rules()
     return create_rule(rule_data, commit, project.cache, project.repo)
