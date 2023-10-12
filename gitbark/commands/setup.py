@@ -45,6 +45,7 @@ def _confirm_commit(
 ):
     if click.confirm(prompt):
         cmd("git", "commit", "-m", commit_message)
+        newline()
     else:
         click.echo("Please commit the changes and run 'bark setup' to continue!")
         exit(0)
@@ -157,7 +158,7 @@ def add_branches_interactive(project: Project, branch: str) -> None:
     except Exception:
         bark_rules = BarkRules([], [])
 
-    click.echo(f"\nConfigure how the '{branch}' branch should be validated!\n")
+    click.echo(f"Configure how the '{branch}' branch should be validated!\n")
 
     ff_only = click.confirm(
         f"Do you want to enforce fast-forward changes on the '{branch}'?"
