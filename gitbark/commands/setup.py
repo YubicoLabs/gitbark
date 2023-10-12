@@ -109,10 +109,10 @@ def add_rules_interactive(project: Project) -> None:
     curr_branch = cmd("git", "symbolic-ref", "--short", "HEAD")[0]
     commit_rules = get_commit_rules(project)
 
-    bark_init = entry_points(group="bark_init")
+    bark_setup = entry_points(group="bark_setup")
     bark_rules = entry_points(group="bark_rules")
     choices = {}
-    for idx, ep in enumerate(bark_init):
+    for idx, ep in enumerate(bark_setup):
         name = ep.name
         docs = bark_rules[name].load().__doc__
         choices[idx] = (name, docs)
@@ -121,8 +121,9 @@ def add_rules_interactive(project: Project) -> None:
     while True:
         newline()
         click.echo("Choose rule (leave blank to skip):")
+        max_length_rule_name = max(len(rule.name) for rule in bark_setup)
         for choice, (name, description) in choices.items():
-            click.echo(" [{0}] {1}\t\t{2}".format(choice, name, description))
+            click.echo(f" [{choice}] {name:{max_length_rule_name}}\t\t{description}")
 
         click_choices = [str(choice) for choice in choices.keys()]
         click_choices.append("")
@@ -141,8 +142,8 @@ def add_rules_interactive(project: Project) -> None:
         rule_id, _ = choices[int(choice)]
         click.echo(f"Configure the {rule_id} rule!")
         newline()
-        init_cls = bark_init[rule_id].load()
-        commit_rule = init_cls(project.repo)
+        init_cls = bark_setup[rule_id].load()
+        commit_rule = init_cls()
         commit_rules["rules"].append(commit_rule)
 
     _confirm_commit_rules(commit_rules)
@@ -171,7 +172,7 @@ def add_branches_interactive(project: Project, branch: str) -> None:
     bootstrap = project.repo.resolve_refish(branch)[0].id
     if not click.confirm(
         f"Do you want to verify the '{branch}' branch using "
-        f"the bootstrap commit {bootstrap}?"
+        f"commit {bootstrap} as bootstrap?"
     ):
         bootstrap = click_prompt(
             "Enter the hash of the bootstrap commit you want to use"
