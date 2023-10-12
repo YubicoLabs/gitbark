@@ -42,12 +42,13 @@ def newline() -> None:
 def _confirm_commit(
     commit_message: str,
     prompt: str = "Do you want 'bark' to commit the changes?",
+    manual_action: str = "Please commit the changes and run 'bark setup' to continue!",
 ):
     if click.confirm(prompt):
         cmd("git", "commit", "-m", commit_message)
         newline()
     else:
-        click.echo("Please commit the changes and run 'bark setup' to continue!")
+        click.echo(manual_action)
         exit(0)
 
 
@@ -104,7 +105,8 @@ def get_commit_rules(project: Project):
         return {"rules": []}
 
 
-def add_rules_interactive(project: Project, branch: str) -> None:
+def add_rules_interactive(project: Project) -> None:
+    curr_branch = cmd("git", "symbolic-ref", "--short", "HEAD")[0]
     commit_rules = get_commit_rules(project)
 
     bark_init = entry_points(group="bark_init")
@@ -115,7 +117,7 @@ def add_rules_interactive(project: Project, branch: str) -> None:
         docs = bark_rules[name].load().__doc__
         choices[idx] = (name, docs)
 
-    click.echo(f"Specify Commit Rules for the '{branch}' branch!")
+    click.echo(f"Specify Commit Rules for the '{curr_branch}' branch!")
     while True:
         newline()
         click.echo("Choose rule (leave blank to skip):")
@@ -153,6 +155,9 @@ def add_rules_interactive(project: Project, branch: str) -> None:
 
 
 def add_branches_interactive(project: Project, branch: str) -> None:
+    curr_branch = cmd("git", "symbolic-ref", "--short", "HEAD")[0]
+    if curr_branch != BARK_RULES_BRANCH:
+        checkout_or_orphan(project, BARK_RULES_BRANCH)
     try:
         bark_rules = get_bark_rules(project)
     except Exception:
@@ -185,6 +190,9 @@ def add_branches_interactive(project: Project, branch: str) -> None:
 
 
 def add_modules_interactive(project: Project) -> None:
+    curr_branch = cmd("git", "symbolic-ref", "--short", "HEAD")[0]
+    if curr_branch != BARK_RULES_BRANCH:
+        checkout_or_orphan(project, BARK_RULES_BRANCH)
     try:
         bark_rules = get_bark_rules(project)
     except Exception:
@@ -282,7 +290,7 @@ def setup(project: Project) -> None:
 
         add_modules_interactive(project)
         newline()
-        add_rules_interactive(project, BARK_RULES_BRANCH)
+        add_rules_interactive(project)
 
         _confirm_commit(commit_message="Add initial modules and rules (made by bark).")
 
@@ -295,10 +303,10 @@ def setup(project: Project) -> None:
     if has_branch(project, curr_branch):
         head = Commit(project.repo.revparse_single(curr_branch).id)
         if not has_commit_rules(head):
-            add_rules_interactive(project, curr_branch)
+            add_rules_interactive(project)
             _confirm_commit(commit_message="Initial rules (made by bark).")
     else:
-        add_rules_interactive(project, curr_branch)
+        add_rules_interactive(project)
         _confirm_commit(commit_message="Initial rules (made by bark).")
 
     if curr_branch != BARK_RULES_BRANCH and not branch_in_bark_rules_yaml(
