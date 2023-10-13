@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .git import Commit
+from .git import Commit, BARK_CONFIG
 from .project import Cache, Project
 from .rule import get_rule, RuleViolation, AllRule
 from .util import cmd
@@ -22,6 +22,7 @@ from typing import Callable, Optional
 import yaml
 
 BARK_RULES_BRANCH = "refs/heads/bark_rules"
+BARK_RULES = f"{BARK_CONFIG}/bark_rules.yaml"
 
 
 def nearest_valid_ancestors(commit: Commit, cache: Cache) -> set[Commit]:
@@ -52,6 +53,12 @@ def validate_rules(commit: Commit, project: Project) -> None:
     else:
         rule = get_rule(validators.pop(), project)
     rule.validate(commit)
+
+    # Also ensure that commit has valid rules
+    try:
+        get_rule(commit, project)
+    except Exception as e:
+        raise RuleViolation(f"invalid commit rules: {e}")
 
 
 def validate_commit(
@@ -127,7 +134,7 @@ def get_bark_rules(project: Project, commit: Optional[Commit] = None) -> BarkRul
         commit = Commit(project.repo.references[BARK_RULES_BRANCH].target)
 
     try:
-        bark_rules_blob = commit.read_file(".gitbark/bark_rules.yaml")
+        bark_rules_blob = commit.read_file(BARK_RULES)
     except FileNotFoundError:
         return BarkRules([], [])
 
