@@ -17,6 +17,14 @@ from gitbark.commands.install import is_installed, install as install_cmd
 from gitbark.commands.prepare_merge_msg import (
     prepare_merge_msg as prepare_merge_msg_cmd,
 )
+from gitbark.commands.setup import (
+    setup as setup_cmd,
+    add_modules_interactive,
+    add_branches_interactive,
+    add_rules_interactive,
+    _confirm_commit,
+    checkout_or_orphan,
+)
 
 from gitbark.core import BARK_RULES_BRANCH
 from gitbark.project import Project
@@ -52,6 +60,70 @@ def cli(ctx):
     ctx.obj["project"] = project
 
     globals.init(toplevel)
+
+
+@cli.command()
+@click.pass_context
+def setup(ctx):
+    """Setup GitBark in repo."""
+
+    project = ctx.obj["project"]
+    setup_cmd(project)
+
+
+@cli.command()
+@click.pass_context
+def add_rules(ctx):
+    """Add commit rules to a branch."""
+    project = ctx.obj["project"]
+    add_rules_interactive(project)
+    _confirm_commit(
+        commit_message="Modify commit rules (made by bark).",
+        manual_action=(
+            "The 'commit_rules.yaml' file has been staged. "
+            "Please commit the changes!"
+        ),
+    )
+    click.echo("Commit rules configuration was committed successfully!")
+
+
+@cli.command()
+@click.pass_context
+def add_modules(ctx):
+    """Add bark modules."""
+    project = ctx.obj["project"]
+    curr_branch = cmd("git", "symbolic-ref", "--short", "HEAD")[0]
+    add_modules_interactive(project)
+    _confirm_commit(
+        commit_message="Modify bark modules (made by bark).",
+        manual_action=(
+            "The 'bark_rules.yaml' file has been staged. " "Please commit the changes!"
+        ),
+    )
+    checkout_or_orphan(project, curr_branch)
+    click.echo("Bark modules configuration was committed successfully!")
+
+
+@cli.command()
+@click.pass_context
+def protect(ctx):
+    """Protect a branch.
+
+    This will add the branch you are currently on to 'bark_rules'
+    so that when changes are made to this branch, they are validated
+    automatically.
+    """
+    project = ctx.obj["project"]
+    curr_branch = cmd("git", "symbolic-ref", "--short", "HEAD")[0]
+    add_branches_interactive(project, curr_branch)
+    _confirm_commit(
+        commit_message="Modify bark modules (made by bark).",
+        manual_action=(
+            "The 'bark_rules.yaml' file has been staged. " "Please commit the changes!"
+        ),
+    )
+    checkout_or_orphan(project, curr_branch)
+    click.echo("Bark modules configuration was committed successfully!")
 
 
 @cli.command()
