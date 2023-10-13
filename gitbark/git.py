@@ -27,8 +27,8 @@ def _glob_match_single(pattern: str, name: str) -> bool:
     return bool(re.match(f"^{pattern}$", name))
 
 
-def _glob_files(tree: Tree, patterns: list[list[str]], prefix="") -> list[str]:
-    matches = []
+def _glob_files(tree: Tree, patterns: list[list[str]], prefix="") -> set[str]:
+    matches = set()
     for child in tree:
         name = child.name
         matching_patterns = []
@@ -40,18 +40,18 @@ def _glob_files(tree: Tree, patterns: list[list[str]], prefix="") -> list[str]:
         if isinstance(child, Tree):
             if matching_patterns:
                 matching_patterns = [p for p in matching_patterns if p]
-                matches.extend(
+                matches.update(
                     _glob_files(child, matching_patterns, f"{prefix}{name}/")
                 )
         else:
             if [] in matching_patterns:
-                matches.append(prefix + name)
-            else:  # Also allow skipping **/
+                matches.add(prefix + name)
+            else:  # Also allow skipping **
                 for m in matching_patterns:
                     while m[0] == "**":
                         m = m[1:]
                     if len(m) == 1 and _glob_match_single(m[0], name):
-                        matches.append(prefix + name)
+                        matches.add(prefix + name)
                         break
     return matches
 
@@ -99,7 +99,8 @@ class Commit:
     def __hash__(self) -> int:
         return int(self.hash, base=16)
 
-    def list_files(self, pattern: Union[list[str], str], root: str = "") -> list[str]:
+    def list_files(self, pattern: Union[list[str], str], root: str = "") -> set[str]:
+        """List files matching a glob pattern in the commit."""
         tree = self.__repo.revparse_single(f"{self.hash}:{root}")
         if not isinstance(tree, Tree):
             raise ValueError(f"'{root}' does not point to a tree")
@@ -116,6 +117,14 @@ class Commit:
     def read_file(self, filename: str) -> bytes:
         """Read the file content of a file in the commit."""
         return self.__repo.revparse_single(f"{self.hash}:{filename}").data
+
+    def get_files_modified(self, other: "Commit") -> set[str]:
+        """Get a list of files modified between two commits."""
+        diff = self.__repo.diff(self.hash, other.hash)
+        modified: set[str] = set()
+        for delta in diff.deltas:
+            modified.update((delta.new_file.path, delta.old_file.path))
+        return modified
 
     def get_commit_rules(self) -> CommitRuleData:
         """Get the commit rules associated with a commit."""
