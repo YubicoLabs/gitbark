@@ -21,6 +21,9 @@ from typing import Union
 import yaml
 import re
 
+BARK_CONFIG = ".bark"
+COMMIT_RULES = f"{BARK_CONFIG}/commit_rules.yaml"
+
 
 def _glob_match_single(pattern: str, name: str) -> bool:
     pattern = re.escape(pattern).replace("\\*", ".*")
@@ -143,7 +146,7 @@ class Commit:
     def get_commit_rules(self) -> CommitRuleData:
         """Get the commit rules associated with a commit."""
         try:
-            commit_rules_blob = self.read_file(".gitbark/commit_rules.yaml")
+            commit_rules_blob = self.read_file(COMMIT_RULES)
         except FileNotFoundError:
             commit_rules_blob = b"rules:"
         rules = transform_commit_rules(commit_rules_blob)
