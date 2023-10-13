@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .objects import CommitRuleData, BarkRules
+from .objects import CommitRuleData
 from gitbark import globals
 
 from dataclasses import dataclass
@@ -54,6 +54,17 @@ def _glob_files(tree: Tree, patterns: list[list[str]], prefix="") -> set[str]:
                         matches.add(prefix + name)
                         break
     return matches
+
+
+def transform_commit_rules(commit_rules_yaml: Union[str, bytes]) -> Union[dict, str]:
+    rules = yaml.safe_load(commit_rules_yaml)["rules"] or []
+    if len(rules) > 1:
+        rules = {"all": rules}
+    elif len(rules) == 1:
+        rules = rules[0]
+    else:
+        rules = {"none": None}
+    return rules
 
 
 class Commit:
@@ -131,21 +142,12 @@ class Commit:
 
     def get_commit_rules(self) -> CommitRuleData:
         """Get the commit rules associated with a commit."""
-        commit_rules_blob = self.read_file(".gitbark/commit_rules.yaml")
-        rules = yaml.safe_load(commit_rules_blob)["rules"]
-        if len(rules) > 1:
-            rules = {"all": rules}
-        elif len(rules) == 1:
-            rules = rules[0]
-        else:
-            rules = {"none": None}
+        try:
+            commit_rules_blob = self.read_file(".gitbark/commit_rules.yaml")
+        except FileNotFoundError:
+            commit_rules_blob = b"rules:"
+        rules = transform_commit_rules(commit_rules_blob)
         return CommitRuleData.parse(rules)
-
-    def get_bark_rules(self) -> BarkRules:
-        """Get the bark rule associated with a commit."""
-        bark_rules_blob = self.read_file(".gitbark/bark_rules.yaml")
-        bark_rules_object = yaml.safe_load(bark_rules_blob)
-        return BarkRules.parse(bark_rules_object)
 
 
 @dataclass

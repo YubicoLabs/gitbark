@@ -19,6 +19,7 @@ from .util import cmd
 from .objects import BranchRule, BarkRules
 from functools import partial
 from typing import Callable, Optional
+import yaml
 
 BARK_RULES_BRANCH = "refs/heads/bark_rules"
 
@@ -94,8 +95,10 @@ def validate_commit(
 
 
 def update_modules(project: Project, branch: str, commit: Commit) -> None:
-    bark_modules = commit.get_bark_rules().modules
-    prev_bark_modules = [set(p.get_bark_rules().modules) for p in commit.parents]
+    bark_modules = get_bark_rules(project, commit).modules
+    prev_bark_modules = [
+        set(get_bark_rules(project, p).modules) for p in commit.parents
+    ]
 
     for module in bark_modules:
         if not prev_bark_modules or any(module not in p for p in prev_bark_modules):
@@ -114,12 +117,22 @@ def validate_commit_rules(
     validate_commit(head, bootstrap, project, on_valid)
 
 
-def get_bark_rules(project: Project) -> BarkRules:
+def get_bark_rules(project: Project, commit: Optional[Commit] = None) -> BarkRules:
     """Returns the latest branch_rules"""
 
-    branch_rules_head = Commit(project.repo.references[BARK_RULES_BRANCH].target)
+    if not commit:
+        if BARK_RULES_BRANCH not in project.repo.references:
+            return BarkRules([], [])
 
-    return branch_rules_head.get_bark_rules()
+        commit = Commit(project.repo.references[BARK_RULES_BRANCH].target)
+
+    try:
+        bark_rules_blob = commit.read_file(".gitbark/bark_rules.yaml")
+    except FileNotFoundError:
+        return BarkRules([], [])
+
+    bark_rules_object = yaml.safe_load(bark_rules_blob)
+    return BarkRules.parse(bark_rules_object)
 
 
 def is_descendant(prev: Commit, new: Commit) -> bool:
