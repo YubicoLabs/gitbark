@@ -116,7 +116,10 @@ class Commit:
 
     def read_file(self, filename: str) -> bytes:
         """Read the file content of a file in the commit."""
-        return self.__repo.revparse_single(f"{self.hash}:{filename}").data
+        try:
+            return self.__repo.revparse_single(f"{self.hash}:{filename}").data
+        except KeyError:
+            raise FileNotFoundError(f"'{filename}' does not exist in commit")
 
     def get_files_modified(self, other: "Commit") -> set[str]:
         """Get a list of files modified between two commits."""
