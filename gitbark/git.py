@@ -16,8 +16,44 @@ from .objects import CommitRuleData, BarkRules
 from gitbark import globals
 
 from dataclasses import dataclass
-from pygit2 import Commit as _Commit
+from pygit2 import Commit as _Commit, Tree
+from typing import Union
 import yaml
+import re
+
+
+def _glob_match_single(pattern: str, name: str) -> bool:
+    pattern = re.escape(pattern).replace("\\*", ".*")
+    return bool(re.match(f"^{pattern}$", name))
+
+
+def _glob_files(tree: Tree, patterns: list[list[str]], prefix="") -> set[str]:
+    matches = set()
+    for child in tree:
+        name = child.name
+        matching_patterns = []
+        for p in patterns:
+            if _glob_match_single(p[0], name):
+                if p[0] == "**":
+                    matching_patterns.append(p)
+                matching_patterns.append(p[1:])
+        if isinstance(child, Tree):
+            if matching_patterns:
+                matching_patterns = [p for p in matching_patterns if p]
+                matches.update(
+                    _glob_files(child, matching_patterns, f"{prefix}{name}/")
+                )
+        else:
+            if [] in matching_patterns:
+                matches.add(prefix + name)
+            else:  # Also allow skipping **
+                for m in matching_patterns:
+                    while m[0] == "**":
+                        m = m[1:]
+                    if len(m) == 1 and _glob_match_single(m[0], name):
+                        matches.add(prefix + name)
+                        break
+    return matches
 
 
 class Commit:
@@ -29,9 +65,8 @@ class Commit:
     def __init__(self, hash: str) -> None:
         """Init Commit with commit hash"""
         self.__repo = globals.repo
-        self.hash = str(hash)
         self.__object: _Commit = self.__repo.get(hash)
-        self.violations: list[str] = []
+        self.hash = str(hash)
 
     @property
     def author(self) -> tuple[str, str]:
@@ -64,14 +99,39 @@ class Commit:
     def __hash__(self) -> int:
         return int(self.hash, base=16)
 
-    def add_rule_violation(self, violation: str) -> None:
-        self.violations.append(violation)
+    def list_files(self, pattern: Union[list[str], str], root: str = "") -> set[str]:
+        """List files matching a glob pattern in the commit."""
+        tree = self.__repo.revparse_single(f"{self.hash}:{root}")
+        if not isinstance(tree, Tree):
+            raise ValueError(f"'{root}' does not point to a tree")
+
+        if isinstance(pattern, list):
+            patterns = pattern
+        else:
+            patterns = [pattern]
+        if root and not root.endswith("/"):
+            root = root + "/"
+        split_patterns = [p.split("/") for p in patterns]
+        return _glob_files(tree, split_patterns, root)
+
+    def read_file(self, filename: str) -> bytes:
+        """Read the file content of a file in the commit."""
+        try:
+            return self.__repo.revparse_single(f"{self.hash}:{filename}").data
+        except KeyError:
+            raise FileNotFoundError(f"'{filename}' does not exist in commit")
+
+    def get_files_modified(self, other: "Commit") -> set[str]:
+        """Get a list of files modified between two commits."""
+        diff = self.__repo.diff(self.hash, other.hash)
+        modified: set[str] = set()
+        for delta in diff.deltas:
+            modified.update((delta.new_file.path, delta.old_file.path))
+        return modified
 
     def get_commit_rules(self) -> CommitRuleData:
         """Get the commit rules associated with a commit."""
-        commit_rules_blob = self.__repo.revparse_single(
-            f"{self.hash}:.gitbark/commit_rules.yaml"
-        ).data
+        commit_rules_blob = self.read_file(".gitbark/commit_rules.yaml")
         rules = yaml.safe_load(commit_rules_blob)["rules"]
         if len(rules) > 1:
             rules = {"all": rules}
@@ -83,9 +143,7 @@ class Commit:
 
     def get_bark_rules(self) -> BarkRules:
         """Get the bark rule associated with a commit."""
-        bark_rules_blob = self.__repo.revparse_single(
-            f"{self.hash}:.gitbark/bark_rules.yaml"
-        ).data
+        bark_rules_blob = self.read_file(".gitbark/bark_rules.yaml")
         bark_rules_object = yaml.safe_load(bark_rules_blob)
         return BarkRules.parse(bark_rules_object)
 
