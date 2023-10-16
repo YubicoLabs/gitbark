@@ -40,10 +40,10 @@ from .util import (
     _add_subcommands,
 )
 
-from typing import Optional
 import click
 import logging
 import sys
+from pygit2 import Branch
 from gitbark import globals
 
 logger = logging.getLogger(__name__)
@@ -138,7 +138,7 @@ def install(ctx):
     project = ctx.obj["project"]
 
     repo = project.repo
-    if BARK_RULES_BRANCH not in repo.references:
+    if not repo.lookup_branch(BARK_RULES_BRANCH):
         raise CliFail('Error: The "bark_rules" branch has not been created!')
 
     root_commit = cmd("git", "rev-list", "--max-parents=0", BARK_RULES_BRANCH)[0]
@@ -165,9 +165,18 @@ def install(ctx):
 
 
 @click_callback()
-def click_parse_ref_update(ctx, param, val):
-    old_ref, new_ref, ref_name = val
-    return ReferenceUpdate(old_ref, new_ref, ref_name)
+def click_parse_commit_or_branch(ctx, param, val):
+    project = ctx.obj["project"]
+
+    try:
+        commit, ref = project.repo.resolve_refish(val)
+        if commit and not ref:  # val is commit
+            return commit
+        else:
+            return project.repo.branches[ref.shorthand]  # val is a branch
+
+    except KeyError:
+        raise CliFail(f"{val} is not a valid commit or branch!")
 
 
 @click_callback()
@@ -178,53 +187,14 @@ def click_parse_bootstrap(ctx, param, val):
 
 
 @click_callback()
-def click_parse_branch(ctx, param, val):
-    project = ctx.obj["project"]
-
-    try:
-        _, ref = project.repo.resolve_refish(val)
-        try:
-            branch = ref.name
-            return branch
-        except Exception:
-            raise
-    except KeyError:
-        raise KeyError(f"{val} is not a valid branch name!")
-
-
-def _get_head(
-    project: Project, branch: str, ref_update: Optional[ReferenceUpdate]
-) -> Commit:
-    """Retrieve head commit of branch.
-
-    Note: If `ref_update` is provided, the new reference target
-    is returned as head.
-    """
-    if ref_update:
-        hash = ref_update.new_ref
-    else:
-        hash = project.repo.references[branch].target
-    return Commit(hash)
+def click_parse_ref_update(ctx, param, val):
+    old_ref, new_ref, ref_name = val
+    return ReferenceUpdate(old_ref, new_ref, ref_name)
 
 
 @cli.command()
 @click.pass_context
-@click.option(
-    "-B",
-    "--branch",
-    type=str,
-    default="HEAD",
-    show_default=True,
-    help="The branch to verify.",
-    callback=click_parse_branch,
-)
-@click.option(
-    "-r",
-    "--ref-update",
-    type=(str, str, str),
-    help="The reference update.",
-    callback=click_parse_ref_update,
-)
+@click.argument("object", callback=click_parse_commit_or_branch, default="HEAD")
 @click.option(
     "-a",
     "--all",
@@ -240,21 +210,37 @@ def _get_head(
     help="Verify from bootstrap",
     callback=click_parse_bootstrap,
 )
-def verify(ctx, branch, ref_update, all, bootstrap):
+@click.option(
+    "-r",
+    "--ref-update",
+    type=(str, str, str),
+    hidden=True,
+    callback=click_parse_ref_update,
+)
+def verify(ctx, object, all, bootstrap, ref_update):
     """
     Verify repository or branch.
+
+    \b
+    OBJECT the commit or branch to verify.
     """
     project = ctx.obj["project"]
     if not is_installed(project):
-        click.echo('Error: Bark is not installed! Run "bark install" first!')
-        sys.exit(1)
+        raise CliFail("Bark is not installed! Run 'bark install' first!")
 
-    head = None
-    if not all:
-        # Get head commit
-        head = _get_head(project, branch, ref_update)
+    branch = None
     if ref_update:
-        branch = ref_update.ref_name
+        branch = project.repo.references[ref_update.ref_name].shorthand
+        head = Commit(ref_update.new_ref)
+    elif isinstance(object, Branch):
+        branch = object.shorthand
+        head = Commit(object.target)
+    else:
+        if not bootstrap:
+            ctx.fail(
+                "verifying a single commit requires specifying a bootstrap with -b"
+            )
+        head = Commit(object.id)
 
     try:
         verify_cmd(project, branch, head, bootstrap, all)
@@ -311,7 +297,6 @@ def main():
     formatter = _DefaultFormatter()
     handler.setFormatter(formatter)
     logging.getLogger().addHandler(handler)
-
     try:
         if should_add_subcommands(sys.argv):
             _add_subcommands(cli)

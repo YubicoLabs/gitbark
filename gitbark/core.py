@@ -21,7 +21,7 @@ from functools import partial
 from typing import Callable, Optional
 import yaml
 
-BARK_RULES_BRANCH = "refs/heads/bark_rules"
+BARK_RULES_BRANCH = "bark_rules"
 BARK_RULES = f"{BARK_CONFIG}/bark_rules.yaml"
 
 
@@ -113,7 +113,7 @@ def update_modules(project: Project, branch: str, commit: Commit) -> None:
 
 
 def validate_commit_rules(
-    project: Project, head: Commit, bootstrap: Commit, branch: str
+    project: Project, head: Commit, bootstrap: Commit, branch: Optional[str] = None
 ) -> None:
     """Validates commit rules on branch"""
     on_valid: Callable[[Commit], None] = lambda commit: None
@@ -128,10 +128,11 @@ def get_bark_rules(project: Project, commit: Optional[Commit] = None) -> BarkRul
     """Returns the latest branch_rules"""
 
     if not commit:
-        if BARK_RULES_BRANCH not in project.repo.references:
+        bark_rules_branch = project.repo.lookup_branch(BARK_RULES_BRANCH)
+        if not bark_rules_branch:
             return BarkRules([], [])
 
-        commit = Commit(project.repo.references[BARK_RULES_BRANCH].target)
+        commit = Commit(bark_rules_branch.target)
 
     try:
         bark_rules_blob = commit.read_file(BARK_RULES)
@@ -161,7 +162,7 @@ def validate_branch_rules(
     # Validate branch_rules
     # TODO: make this part more modular
     if branch_rule.ff_only:
-        prev_head_hash = project.repo.references[branch].target
+        prev_head_hash = project.repo.branches[branch].target
         prev_head = Commit(prev_head_hash)
         if not is_descendant(prev_head, head):
             raise RuleViolation(f"Commit is not a descendant of {prev_head.hash}")

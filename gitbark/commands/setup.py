@@ -12,26 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from gitbark.cli.util import click_prompt, CliFail
-from gitbark.project import Project
-from gitbark.git import Commit, transform_commit_rules
-from gitbark.objects import BarkRules, BranchRule, CommitRuleData
-from gitbark.util import cmd
-from gitbark.core import get_bark_rules
+from ..core import get_bark_rules, BARK_RULES, BARK_RULES_BRANCH
+from ..objects import BarkRules, BranchRule, CommitRuleData
+from ..git import Commit, transform_commit_rules, COMMIT_RULES, BARK_CONFIG
+from ..project import Project
+from ..util import cmd
+
+from ..cli.util import click_prompt, CliFail
+
 from importlib.metadata import entry_points
 from dataclasses import asdict
-
 from typing import Optional
+
 import click
 import os
 import yaml
 import re
 
-
-BARK_IN_REPO_FOLDER = ".gitbark"
-COMMIT_RULES = "commit_rules.yaml"
-BARK_RULES = "bark_rules.yaml"
-BARK_RULES_BRANCH = "bark_rules"
 ACTIVE_BRANCH = "active_branch"
 
 
@@ -76,7 +73,7 @@ def _confirm_commit_rules(
 
 
 def dump_and_stage(project: Project, file: str, content: str) -> None:
-    gitbark_folder = f"{project.path}/.gitbark"
+    gitbark_folder = f"{project.path}/{BARK_CONFIG}"
     if not os.path.exists(gitbark_folder):
         os.makedirs(gitbark_folder)
 
@@ -98,7 +95,7 @@ def checkout_or_orphan(project: Project, branch: str) -> None:
 
 
 def get_commit_rules(project: Project) -> dict:
-    cr_file = os.path.join(project.path, BARK_IN_REPO_FOLDER, COMMIT_RULES)
+    cr_file = os.path.join(project.path, COMMIT_RULES)
     if not os.path.exists(cr_file):
         return {}
     else:
@@ -211,7 +208,7 @@ def add_rules_interactive(project: Project) -> None:
 
     dump_and_stage(
         project=project,
-        file=f"{project.path}/{BARK_IN_REPO_FOLDER}/{COMMIT_RULES}",
+        file=f"{project.path}/{COMMIT_RULES}",
         content=yaml.safe_dump(commit_rules, sort_keys=False),
     )
 
@@ -247,7 +244,7 @@ def add_branches_interactive(project: Project, branch: str) -> None:
 
     dump_and_stage(
         project=project,
-        file=f"{project.path}/{BARK_IN_REPO_FOLDER}/{BARK_RULES}",
+        file=f"{project.path}/{BARK_RULES}",
         content=yaml.safe_dump(asdict(bark_rules), sort_keys=False),
     )
 
@@ -279,7 +276,7 @@ def add_modules_interactive(project: Project) -> None:
 
     dump_and_stage(
         project=project,
-        file=f"{project.path}/{BARK_IN_REPO_FOLDER}/{BARK_RULES}",
+        file=f"{project.path}/{BARK_RULES}",
         content=yaml.safe_dump(asdict(bark_rules), sort_keys=False),
     )
 

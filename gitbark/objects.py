@@ -67,8 +67,8 @@ class BranchRule:
         return cls(pattern=pattern, bootstrap=bootstrap, ff_only=True)
 
     def branches(self, repo: Repository) -> list[str]:
-        pattern = re.compile(f".*{self.pattern}")
-        all_branches = list(repo.references)
+        pattern = re.compile(f"{self.pattern}")
+        all_branches = list(repo.branches.local)
         return [branch for branch in all_branches if pattern.match(branch)]
 
 
