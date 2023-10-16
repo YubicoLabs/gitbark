@@ -29,7 +29,7 @@ from typing import Optional
 def verify_bark_rules(project: Project):
     """Verifies the bark_rules branch."""
     bootstrap = Commit(project.bootstrap)
-    head = Commit(project.repo.references[BARK_RULES_BRANCH].target)
+    head = Commit(project.repo.lookup_branch(BARK_RULES_BRANCH).target)
     verify_branch(
         project=project,
         branch=BARK_RULES_BRANCH,
@@ -62,27 +62,37 @@ def verify(
     If `all` is set, the entire repository will be validated. Otherwise
     `branch` will be validated.
     """
-    verify_bark_rules(project)
 
-    bark_rules = get_bark_rules(project)
-    branch_rules = bark_rules.branches
+    if bootstrap and head:
+        validate_commit_rules(
+            project=project,
+            head=head,
+            bootstrap=bootstrap,
+            branch=branch,
+        )
+    else:
+        verify_bark_rules(project)
 
-    if all:
-        # Verify all branches matching branch_rules
-        verify_all(project, branch_rules)
-    elif branch and head:
-        # Verify target branch
-        branch_rule = get_branch_rule(project, branch, branch_rules)
-        if branch_rule:
-            bootstrap = Commit(branch_rule.bootstrap)
-        if bootstrap:
-            verify_branch(
-                project=project,
-                branch=branch,
-                head=head,
-                bootstrap=bootstrap,
-                branch_rule=branch_rule,
-            )
+        bark_rules = get_bark_rules(project)
+        branch_rules = bark_rules.branches
+
+        if all:
+            # Verify all branches matching branch_rules
+            verify_all(project, branch_rules)
+        elif branch and head:
+            # Verify target branch
+            branch_rule = get_branch_rule(project, branch, branch_rules)
+            if branch_rule:
+                bootstrap = Commit(branch_rule.bootstrap)
+            # TODO: raise some error if no branch_rule matches the branch
+            if bootstrap:
+                verify_branch(
+                    project=project,
+                    branch=branch,
+                    head=head,
+                    bootstrap=bootstrap,
+                    branch_rule=branch_rule,
+                )
 
 
 def verify_all(project: Project, branch_rules: list[BranchRule]):
@@ -90,7 +100,7 @@ def verify_all(project: Project, branch_rules: list[BranchRule]):
     violations = []
     for rule in branch_rules:
         for branch in rule.branches(project.repo):
-            head_hash = project.repo.references[branch].target
+            head_hash = project.repo.branches[branch].target
             head = Commit(head_hash)
             bootstrap = Commit(rule.bootstrap)
             try:
