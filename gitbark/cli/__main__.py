@@ -44,7 +44,6 @@ import click
 import logging
 import sys
 from pygit2 import Branch
-from gitbark import globals
 
 logger = logging.getLogger(__name__)
 
@@ -58,8 +57,6 @@ def cli(ctx):
     project = Project(toplevel)
 
     ctx.obj["project"] = project
-
-    globals.init(toplevel)
 
 
 @cli.command()
@@ -181,8 +178,9 @@ def click_parse_commit_or_branch(ctx, param, val):
 
 @click_callback()
 def click_parse_bootstrap(ctx, param, val):
+    project = ctx.obj["project"]
     if val:
-        return Commit(val)
+        return Commit(val, project.repo)
     return None
 
 
@@ -231,16 +229,16 @@ def verify(ctx, target, all, bootstrap, ref_update):
     branch = None
     if ref_update:
         branch = project.repo.references[ref_update.ref_name].shorthand
-        head = Commit(ref_update.new_ref)
+        head = Commit(ref_update.new_ref, project.repo)
     elif isinstance(target, Branch):
         branch = target.shorthand
-        head = Commit(target.target)
+        head = Commit(target.target, project.repo)
     else:
         if not bootstrap:
             ctx.fail(
                 "verifying a single commit requires specifying a bootstrap with -b"
             )
-        head = Commit(target.id)
+        head = Commit(target.id, project.repo)
 
     try:
         verify_cmd(project, branch, head, bootstrap, all)
@@ -265,7 +263,7 @@ def prepare_merge_msg(ctx, commit_msg_file):
     project = ctx.obj["project"]
     repo = project.repo
 
-    head = Commit(repo.head.target)
+    head = Commit(repo.head.target, repo)
 
     prepare_merge_msg_cmd(head, project, commit_msg_file)
 

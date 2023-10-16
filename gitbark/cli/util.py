@@ -5,7 +5,6 @@ from gitbark.project import Project
 from gitbark.commands.install import is_installed
 from gitbark.rule import RuleViolation
 from gitbark.util import cmd
-from gitbark import globals
 
 from importlib.metadata import entry_points
 import functools
@@ -92,7 +91,6 @@ def _add_subcommands(group: click.Group):
     try:
         toplevel = get_root()
         project = Project(toplevel)
-        globals.init(toplevel)
         if not is_installed(project):
             return
     except Exception:

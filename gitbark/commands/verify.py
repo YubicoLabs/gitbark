@@ -28,8 +28,8 @@ from typing import Optional
 
 def verify_bark_rules(project: Project):
     """Verifies the bark_rules branch."""
-    bootstrap = Commit(project.bootstrap)
-    head = Commit(project.repo.lookup_branch(BARK_RULES_BRANCH).target)
+    bootstrap = Commit(project.bootstrap, project.repo)
+    head = Commit(project.repo.lookup_branch(BARK_RULES_BRANCH).target, project.repo)
     verify_branch(
         project=project,
         branch=BARK_RULES_BRANCH,
@@ -83,7 +83,7 @@ def verify(
             # Verify target branch
             branch_rule = get_branch_rule(project, branch, branch_rules)
             if branch_rule:
-                bootstrap = Commit(branch_rule.bootstrap)
+                bootstrap = Commit(branch_rule.bootstrap, project.repo)
             # TODO: raise some error if no branch_rule matches the branch
             if bootstrap:
                 verify_branch(
@@ -101,8 +101,8 @@ def verify_all(project: Project, branch_rules: list[BranchRule]):
     for rule in branch_rules:
         for branch in rule.branches(project.repo):
             head_hash = project.repo.branches[branch].target
-            head = Commit(head_hash)
-            bootstrap = Commit(rule.bootstrap)
+            head = Commit(head_hash, project.repo)
+            bootstrap = Commit(rule.bootstrap, project.repo)
             try:
                 verify_branch(
                     project=project,

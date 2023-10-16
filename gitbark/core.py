@@ -132,7 +132,7 @@ def get_bark_rules(project: Project, commit: Optional[Commit] = None) -> BarkRul
         if not bark_rules_branch:
             return BarkRules([], [])
 
-        commit = Commit(bark_rules_branch.target)
+        commit = Commit(bark_rules_branch.target, project.repo)
 
     try:
         bark_rules_blob = commit.read_file(BARK_RULES)
@@ -163,6 +163,6 @@ def validate_branch_rules(
     # TODO: make this part more modular
     if branch_rule.ff_only:
         prev_head_hash = project.repo.branches[branch].target
-        prev_head = Commit(prev_head_hash)
+        prev_head = Commit(prev_head_hash, project.repo)
         if not is_descendant(prev_head, head):
             raise RuleViolation(f"Commit is not a descendant of {prev_head.hash}")
