@@ -194,7 +194,7 @@ def click_parse_ref_update(ctx, param, val):
 
 @cli.command()
 @click.pass_context
-@click.argument("object", callback=click_parse_commit_or_branch, default="HEAD")
+@click.argument("target", callback=click_parse_commit_or_branch, default="HEAD")
 @click.option(
     "-a",
     "--all",
@@ -217,12 +217,12 @@ def click_parse_ref_update(ctx, param, val):
     hidden=True,
     callback=click_parse_ref_update,
 )
-def verify(ctx, object, all, bootstrap, ref_update):
+def verify(ctx, target, all, bootstrap, ref_update):
     """
     Verify repository or branch.
 
     \b
-    OBJECT the commit or branch to verify.
+    TARGET the commit or branch to verify.
     """
     project = ctx.obj["project"]
     if not is_installed(project):
@@ -232,15 +232,15 @@ def verify(ctx, object, all, bootstrap, ref_update):
     if ref_update:
         branch = project.repo.references[ref_update.ref_name].shorthand
         head = Commit(ref_update.new_ref)
-    elif isinstance(object, Branch):
-        branch = object.shorthand
-        head = Commit(object.target)
+    elif isinstance(target, Branch):
+        branch = target.shorthand
+        head = Commit(target.target)
     else:
         if not bootstrap:
             ctx.fail(
                 "verifying a single commit requires specifying a bootstrap with -b"
             )
-        head = Commit(object.id)
+        head = Commit(target.id)
 
     try:
         verify_cmd(project, branch, head, bootstrap, all)
