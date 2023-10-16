@@ -116,7 +116,8 @@ def has_valid_bark_rules(project: Project) -> bool:
         root_commit = Commit(
             cmd("git", "rev-list", "--max-parents=0", BARK_RULES_BRANCH)[
                 0
-            ]  # root commit hash
+            ],  # root commit hash
+            project.repo,
         )
         try:
             root_commit.get_commit_rules()  # will throw error if not parseable

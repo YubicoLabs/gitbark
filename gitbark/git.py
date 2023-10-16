@@ -13,10 +13,9 @@
 # limitations under the License.
 
 from .objects import CommitRuleData
-from gitbark import globals
 
 from dataclasses import dataclass
-from pygit2 import Commit as _Commit, Tree
+from pygit2 import Commit as _Commit, Tree, Repository
 from typing import Union
 import yaml
 import re
@@ -76,9 +75,9 @@ class Commit:
     This class serves as a wrapper for a Git commit object
     """
 
-    def __init__(self, hash: str) -> None:
+    def __init__(self, hash: str, repo: Repository) -> None:
         """Init Commit with commit hash"""
-        self.__repo = globals.repo
+        self.__repo = repo
         self.__object: _Commit = self.__repo.get(hash)
         self.hash = str(hash)
 
@@ -90,7 +89,7 @@ class Commit:
     @property
     def parents(self) -> list["Commit"]:
         """The list of parent commits."""
-        return [Commit(hash) for hash in self.__object.parent_ids]
+        return [Commit(hash, self.__repo) for hash in self.__object.parent_ids]
 
     @property
     def signature(self) -> tuple[bytes, bytes]:
