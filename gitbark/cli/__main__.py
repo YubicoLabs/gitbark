@@ -222,14 +222,18 @@ def verify(ctx, target, all, bootstrap, ref_update):
     \b
     TARGET the commit or branch to verify.
     """
+
     project = ctx.obj["project"]
     if not is_installed(project):
         raise CliFail("Bark is not installed! Run 'bark install' first!")
 
     branch = None
     if ref_update:
-        branch = project.repo.references[ref_update.ref_name].shorthand
-        head = Commit(ref_update.new_ref, project.repo)
+        if ref_update.ref_name in project.repo.references:
+            branch = project.repo.references[ref_update.ref_name].shorthand
+            head = Commit(ref_update.new_ref, project.repo)
+        else:
+            return
     elif isinstance(target, Branch):
         branch = target.shorthand
         head = Commit(target.target, project.repo)
