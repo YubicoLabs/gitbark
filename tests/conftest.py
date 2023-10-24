@@ -13,18 +13,105 @@
 # limitations under the License.
 
 from gitbark.cli.__main__ import cli
+from gitbark.objects import BranchRule, BarkRules
+from gitbark.core import BARK_RULES_BRANCH
 
-from .util import Environment
+from .util import Environment, get_test_bark_module, disable_bark
 
 from click.testing import CliRunner
+from unittest.mock import patch
 
 import pytest
+import os
+
 
 @pytest.fixture(scope="session")
-def env():
-    env = Environment()
-    yield env
-    env.clean()
+def _env_clean_state(tmp_path_factory):
+    env_path = tmp_path_factory.mktemp("env")
+    dump_path = tmp_path_factory.mktemp("dump")
+    env = Environment(env_path)
+    env.dump(dump_path)
+    return env, dump_path
+
+
+@pytest.fixture(scope="session")
+def _env_initialized_state(_env_clean_state: tuple[Environment, str], tmp_path_factory):
+    env, _ = _env_clean_state
+
+    bootstrap_main = env.repo.commit("Initial commit.")
+
+    branch_rule = BranchRule(
+        pattern="main", bootstrap=bootstrap_main.hash, ff_only=False
+    )
+    bark_rules = BarkRules(branches=[branch_rule], modules=[get_test_bark_module()])
+    env.repo.add_bark_rules(bark_rules)
+
+    dump_path = tmp_path_factory.mktemp("dump")
+    env.dump(dump_path)
+    return env, dump_path
+
+
+@pytest.fixture(scope="session")
+def _env_installed_state(
+    _env_initialized_state: tuple[Environment, str], tmp_path_factory, bark_cli
+):
+    env, _ = _env_initialized_state
+
+    cwd = os.getcwd()
+    os.chdir(env.repo.repo_dir)
+
+    with patch("click.confirm", return_value="y"):
+        bark_cli("install")
+    os.chdir(cwd)
+
+    dump_path = tmp_path_factory.mktemp("dump")
+    env.dump(dump_path)
+    return env, dump_path
+
+
+@pytest.fixture(scope="session")
+def _env_bark_rules_invalid_state(
+    _env_installed_state: tuple[Environment, str], tmp_path_factory
+):
+    env, _ = _env_installed_state
+
+    always_fail_rules = {"rules": [{"always_fail": None}]}
+    env.repo.add_commit_rules(commit_rules=always_fail_rules, branch=BARK_RULES_BRANCH)
+
+    with disable_bark(env.repo) as repo:
+        repo.commit(branch=BARK_RULES_BRANCH)
+
+    dump_path = tmp_path_factory.mktemp("dump")
+    env.dump(dump_path)
+    return env, dump_path
+
+
+@pytest.fixture(scope="function")
+def env_clean(_env_clean_state: tuple[Environment, str]):
+    env, dump = _env_clean_state
+    env.restore_from_dump(dump)
+    return env
+
+
+@pytest.fixture(scope="function")
+def env_initialized(_env_initialized_state: tuple[Environment, str]):
+    env, dump = _env_initialized_state
+    env.restore_from_dump(dump)
+    return env
+
+
+@pytest.fixture(scope="function")
+def env_installed(_env_installed_state: tuple[Environment, str]):
+    env, dump = _env_installed_state
+    env.restore_from_dump(dump)
+    return env
+
+
+@pytest.fixture(scope="function")
+def env_bark_rules_invalid(_env_bark_rules_invalid_state: tuple[Environment, str]):
+    env, dump = _env_bark_rules_invalid_state
+    env.restore_from_dump(dump)
+    return env
 
 
 @pytest.fixture(scope="session")

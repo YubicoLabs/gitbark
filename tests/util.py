@@ -69,7 +69,17 @@ class Repo:
     def add_remote(self, remote_dir: str) -> None:
         cmd("git", "remote", "add", "origin", remote_dir, cwd=self.repo_dir)
 
-    def commit(self, message: str = "Default msg.", amend: bool = False) -> Commit:
+    def commit(
+        self,
+        message: str = "Default msg.",
+        amend: bool = False,
+        branch: Optional[str] = None,
+    ) -> Commit:
+        curr_branch = cmd("git", "symbolic-ref", "--short", "HEAD", cwd=self.repo_dir)[
+            0
+        ]
+        if branch and branch != curr_branch:
+            self.checkout(branch)
         cmd("git", "add", ".", cwd=self.repo_dir)
         if amend:
             cmd(
@@ -95,6 +105,7 @@ class Repo:
                 cwd=self.repo_dir,
             )
 
+        self.checkout(curr_branch)
         return Commit(hash=self._repo.head.target, repo=self._repo)
 
     def revert(self, rev: str, branch: Optional[str] = None) -> None:
@@ -169,19 +180,28 @@ def disable_bark(repo: Repo):
 
 
 class Environment:
-    def __init__(self) -> None:
-        self.env_dir = f"{os.getcwd()}/{random_string()}"
-        if not os.path.exists(self.env_dir):
-            os.mkdir(self.env_dir)
+    def __init__(self, path: str) -> None:
+        self.env_dir = path
+
+        self.remote_dir = f"{self.env_dir}/remote"
+        self.repo_dir = f"{self.env_dir}/repo"
 
         self._add_remote()
-        self.repo = Repo(f"{self.env_dir}/{random_string()}-local", self.remote_dir)
+        self.repo = Repo(self.repo_dir, self.remote_dir)
+
+    def restore_from_dump(self, dump: str) -> None:
+        dump_repo_path = os.path.join(dump, "repo")
+        dump_remote_path = os.path.join(dump, "remote")
+        cmd("cp", "-fr", f"{dump_repo_path}/.", f"{self.repo_dir}/")
+        cmd("cp", "-fr", f"{dump_remote_path}/.", f"{self.remote_dir}/")
 
     def _add_remote(self):
-        self.remote_dir = f"{self.env_dir}/{random_string()}"
         if not os.path.exists(self.remote_dir):
             os.mkdir(self.remote_dir)
         cmd("git", "init", "--bare", cwd=self.remote_dir)  # initialize remote
+
+    def dump(self, path: str) -> None:
+        cmd("cp", "-fr", f"{self.env_dir}/.", f"{path}/")
 
     def clean(self):
         shutil.rmtree(self.env_dir)
