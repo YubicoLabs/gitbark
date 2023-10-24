@@ -99,6 +99,11 @@ class Project:
         self.bootstrap = self.get_bootstrap()
         self.repo = Repository(self.path)
 
+    @staticmethod
+    def exists(path: str) -> bool:
+        bark_directory = os.path.join(path, ".git", BARK_DIRECTORY)
+        return os.path.exists(bark_directory)
+
     def create_db(self) -> None:
         with connect_db(self.db_path) as db:
             db.executescript(
