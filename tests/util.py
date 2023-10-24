@@ -32,9 +32,7 @@ import os
 
 def get_test_bark_module():
     cwd = os.getcwd()
-    return os.path.join(
-        cwd, "tests", "test_bark_module", "dist", "test-bark-core-0.0.1.tar.gz"
-    )
+    return os.path.join(cwd, "tests", "test_bark_module")
 
 
 def random_string(length: int = 10):
@@ -64,11 +62,7 @@ class Repo:
             "git", "checkout", "-b", "main", cwd=self.repo_dir
         )  # make init independent of Git version
 
-    def set_git_user(
-            self,
-            name: str = "Test",
-            email: str = "test@test.com"
-    ) -> None:
+    def set_git_user(self, name: str = "Test", email: str = "test@test.com") -> None:
         cmd("git", "config", "user.email", email, cwd=self.repo_dir)
         cmd("git", "config", "user.name", name, cwd=self.repo_dir)
 

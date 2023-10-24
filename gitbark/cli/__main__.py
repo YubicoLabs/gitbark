@@ -229,11 +229,10 @@ def verify(ctx, target, all, bootstrap, ref_update):
 
     branch = None
     if ref_update:
-        if ref_update.ref_name in project.repo.references:
-            branch = project.repo.references[ref_update.ref_name].shorthand
-            head = Commit(ref_update.new_ref, project.repo)
-        else:
+        if ref_update.ref_name not in project.repo.references:
             return
+        branch = project.repo.references[ref_update.ref_name].shorthand
+        head = Commit(ref_update.new_ref, project.repo)
     elif isinstance(target, Branch):
         branch = target.shorthand
         head = Commit(target.target, project.repo)

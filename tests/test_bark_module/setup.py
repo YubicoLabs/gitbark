@@ -2,7 +2,7 @@
 
 
 """
-Setup script for `bark_core`
+Setup script for `test_bark_core`
 """
 
 

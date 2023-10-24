@@ -1,2 +1,4 @@
 *.pyc
 .vscode
+*.egg-info/
+tests/test_bark_module/build/
