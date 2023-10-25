@@ -121,7 +121,13 @@ def validate_commit_rules(
         # Need to update modules on each validated commit
         on_valid = partial(update_modules, project, branch)
 
-    validate_commit(head, bootstrap, project, on_valid)
+    try:
+        validate_commit(head, bootstrap, project, on_valid)
+    except RuleViolation as e:
+        error_message = f"Validation errors for commit '{head.hash}'"
+        if branch:
+            error_message += f" on branch '{branch}'"
+        raise RuleViolation(error_message, [e])
 
 
 def get_bark_rules(project: Project, commit: Optional[Commit] = None) -> BarkRules:
@@ -161,8 +167,13 @@ def validate_branch_rules(
 ) -> None:
     # Validate branch_rules
     # TODO: make this part more modular
-    if branch_rule.ff_only:
-        prev_head_hash = project.repo.branches[branch].target
-        prev_head = Commit(prev_head_hash, project.repo)
-        if not is_descendant(prev_head, head):
-            raise RuleViolation(f"Commit is not a descendant of {prev_head.hash}")
+    try:
+        if branch_rule.ff_only:
+            prev_head_hash = project.repo.branches[branch].target
+            prev_head = Commit(prev_head_hash, project.repo)
+            if not is_descendant(prev_head, head):
+                raise RuleViolation(f"Commit is not a descendant of {prev_head.hash}")
+    except RuleViolation as e:
+        raise RuleViolation(
+            f"Validation errors for commit '{head.hash}' on branch '{branch}'", [e]
+        )
