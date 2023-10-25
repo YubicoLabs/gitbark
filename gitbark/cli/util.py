@@ -2,7 +2,6 @@ from collections import OrderedDict
 from collections.abc import MutableMapping
 
 from gitbark.project import Project
-from gitbark.commands.install import is_installed
 from gitbark.rule import RuleViolation
 from gitbark.util import cmd
 
@@ -90,9 +89,12 @@ def get_root() -> str:
 def _add_subcommands(group: click.Group):
     try:
         toplevel = get_root()
-        project = Project(toplevel)
-        if not is_installed(project):
-            return
+
+        # Check if a project exists
+        if Project.exists(toplevel):
+            Project(
+                toplevel
+            )  # Initializing the project loads modules which can contain subcommands
     except Exception:
         return
 
