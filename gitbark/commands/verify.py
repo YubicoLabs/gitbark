@@ -112,7 +112,7 @@ def verify_all(project: Project, branch_rules: list[BranchRule]):
                     branch_rule=rule,
                 )
             except RuleViolation as e:
-                violations.append(RuleViolation(f"Validation errors in {branch}", [e]))
+                violations.append(e)
     if violations:
         raise RuleViolation("Not all branches were valid", violations)
 
