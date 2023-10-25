@@ -12,17 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from gitbark.cli.__main__ import cli
+from gitbark.cli.__main__ import cli, _DefaultFormatter
+from gitbark.cli.util import CliFail
 from gitbark.objects import BranchRule, BarkRules
 from gitbark.core import BARK_RULES_BRANCH
 
-from .util import Environment, get_test_bark_module, disable_bark
+from .util import Environment, disable_bark
 
 from click.testing import CliRunner
-from unittest.mock import patch
 
+import logging
 import pytest
 import os
+
+
+@pytest.fixture(autouse=True, scope="session")
+def test_bark_module():
+    cwd = os.getcwd()
+    return os.path.join(cwd, "tests", "test_bark_module")
 
 
 @pytest.fixture(scope="session")
@@ -35,7 +42,9 @@ def _env_clean_state(tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def _env_initialized_state(_env_clean_state: tuple[Environment, str], tmp_path_factory):
+def _env_initialized_state(
+    _env_clean_state: tuple[Environment, str], tmp_path_factory, test_bark_module
+):
     env, _ = _env_clean_state
 
     bootstrap_main = env.repo.commit("Initial commit.")
@@ -43,7 +52,7 @@ def _env_initialized_state(_env_clean_state: tuple[Environment, str], tmp_path_f
     branch_rule = BranchRule(
         pattern="main", bootstrap=bootstrap_main.hash, ff_only=False
     )
-    bark_rules = BarkRules(branches=[branch_rule], modules=[get_test_bark_module()])
+    bark_rules = BarkRules(branches=[branch_rule], modules=[test_bark_module])
     env.repo.add_bark_rules(bark_rules)
 
     dump_path = tmp_path_factory.mktemp("dump")
@@ -59,9 +68,7 @@ def _env_installed_state(
 
     cwd = os.getcwd()
     os.chdir(env.repo.repo_dir)
-
-    with patch("click.confirm", return_value="y"):
-        bark_cli("install")
+    bark_cli("install", input="y")
     os.chdir(cwd)
 
     dump_path = tmp_path_factory.mktemp("dump")
@@ -119,7 +126,16 @@ def bark_cli():
     return _bark_cli
 
 
-def _bark_cli(*args):
-    runner = CliRunner()
-    result = runner.invoke(cli, args)
+def _bark_cli(*argv, **kwargs):
+    handler = logging.StreamHandler()
+    handler.setLevel(logging.WARNING)
+    handler.setFormatter(_DefaultFormatter())
+    logging.getLogger().addHandler(handler)
+
+    runner = CliRunner(mix_stderr=True)
+    result = runner.invoke(cli, argv, obj={}, **kwargs)
+    if result.exit_code != 0:
+        if isinstance(result.exception, CliFail):
+            raise SystemExit()
+        raise result.exception
     return result

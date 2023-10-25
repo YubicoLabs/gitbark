@@ -14,21 +14,22 @@
 
 from .util import Environment
 
-from unittest.mock import patch
 
 import os
+import pytest
 
 
 class TestInstall:
     def verify_install(self, env: Environment, bark_cli, passes: bool):
         cwd = os.getcwd()
         os.chdir(env.repo.repo_dir)
-        with patch("click.confirm", return_value="y"):
-            result = bark_cli("install")
-        if passes:
-            assert result.exit_code == 0
+        print(env.repo.repo_dir)
+
+        if not passes:
+            with pytest.raises(SystemExit):
+                bark_cli("install", input="y")
         else:
-            assert result.exit_code != 0
+            bark_cli("install", input="y")
         os.chdir(cwd)
 
     def test_install_without_bark_rules(self, env_clean: Environment, bark_cli):

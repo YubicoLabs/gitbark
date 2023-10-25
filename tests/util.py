@@ -30,11 +30,6 @@ import yaml
 import os
 
 
-def get_test_bark_module():
-    cwd = os.getcwd()
-    return os.path.join(cwd, "tests", "test_bark_module")
-
-
 def random_string(length: int = 10):
     # choose from all lowercase letter
     letters = string.ascii_lowercase
@@ -192,6 +187,14 @@ class Environment:
     def restore_from_dump(self, dump: str) -> None:
         dump_repo_path = os.path.join(dump, "repo")
         dump_remote_path = os.path.join(dump, "remote")
+
+        # Recreating the folders to ensure all files and folders
+        # are copied.
+        shutil.rmtree(self.repo_dir)
+        shutil.rmtree(self.remote_dir)
+        os.mkdir(self.repo_dir)
+        os.mkdir(self.remote_dir)
+
         cmd("cp", "-fr", f"{dump_repo_path}/.", f"{self.repo_dir}/")
         cmd("cp", "-fr", f"{dump_remote_path}/.", f"{self.remote_dir}/")
 
