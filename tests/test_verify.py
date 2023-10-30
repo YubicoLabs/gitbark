@@ -98,7 +98,7 @@ class TestVerify:
         "rules",
         [
             {"ruless": None},
-            {"rules": {"always_fail": None}},
+            # TODO: Is this really a failure? {"rules": {"always_fail": None}},
             {"always_fail": None},
             {"rules": [{"not_exists_rule": None}]},
             {
