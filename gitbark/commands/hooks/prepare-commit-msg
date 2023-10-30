@@ -24,6 +24,6 @@ COMMIT_MSG_FILE=$1
 COMMIT_SOURCE=$2
 SHA1=$3
 
-if [ $COMMIT_SOURCE = "merge" ]; then
-    bark prepare-merge-msg $COMMIT_MSG_FILE
-fi
+#if [ $COMMIT_SOURCE = "merge" ]; then
+#    bark prepare-merge-msg $COMMIT_MSG_FILE
+#fi

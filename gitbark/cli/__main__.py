@@ -14,9 +14,6 @@
 
 from gitbark.commands.verify import verify as verify_cmd
 from gitbark.commands.install import is_installed, install as install_cmd
-from gitbark.commands.prepare_merge_msg import (
-    prepare_merge_msg as prepare_merge_msg_cmd,
-)
 from gitbark.commands.setup import (
     setup as setup_cmd,
     add_modules_interactive,
@@ -255,20 +252,6 @@ def verify(ctx, target, all, bootstrap, ref_update):
         sys.exit(1)
     finally:
         project.update()
-
-
-@cli.command(hidden=True)
-@click.pass_context
-@click.argument("commit_msg_file")
-def prepare_merge_msg(ctx, commit_msg_file):
-    """Run merge hooks."""
-
-    project = ctx.obj["project"]
-    repo = project.repo
-
-    head = Commit(repo.head.target, repo)
-
-    prepare_merge_msg_cmd(head, project, commit_msg_file)
 
 
 class _DefaultFormatter(logging.Formatter):

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .objects import CommitRuleData
+from .objects import RuleData
 
 from dataclasses import dataclass
 from pygit2 import Commit as _Commit, Tree, Repository
@@ -56,17 +56,6 @@ def _glob_files(tree: Tree, patterns: list[list[str]], prefix="") -> set[str]:
                         matches.add(prefix + name)
                         break
     return matches
-
-
-def transform_commit_rules(commit_rules_yaml: Union[str, bytes]) -> Union[dict, str]:
-    rules = yaml.safe_load(commit_rules_yaml)["rules"] or []
-    if len(rules) > 1:
-        rules = {"all": rules}
-    elif len(rules) == 1:
-        rules = rules[0]
-    else:
-        rules = {"none": None}
-    return rules
 
 
 class Commit:
@@ -142,14 +131,14 @@ class Commit:
             modified.update((delta.new_file.path, delta.old_file.path))
         return modified
 
-    def get_commit_rules(self) -> CommitRuleData:
+    def get_commit_rules(self) -> RuleData:
         """Get the commit rules associated with a commit."""
         try:
             commit_rules_blob = self.read_file(COMMIT_RULES)
+            rules_data = yaml.safe_load(commit_rules_blob)["rules"] or []
         except FileNotFoundError:
-            commit_rules_blob = b"rules:"
-        rules = transform_commit_rules(commit_rules_blob)
-        return CommitRuleData.parse(rules)
+            rules_data = []
+        return RuleData.parse(rules_data)
 
 
 @dataclass

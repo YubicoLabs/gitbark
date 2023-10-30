@@ -18,7 +18,7 @@ from ..core import (
     get_bark_rules,
     BARK_RULES_BRANCH,
 )
-from ..objects import BranchRule
+from ..objects import BranchRuleData
 from ..git import Commit
 from ..rule import RuleViolation
 from ..project import Project
@@ -39,10 +39,10 @@ def verify_bark_rules(project: Project):
 
 
 def get_branch_rule(
-    project: Project, branch: str, rules: list[BranchRule]
-) -> Optional[BranchRule]:
+    project: Project, branch: str, rules: list[BranchRuleData]
+) -> Optional[BranchRuleData]:
     if branch == BARK_RULES_BRANCH:
-        return BranchRule.get_default(BARK_RULES_BRANCH, project.bootstrap)
+        return BranchRuleData.get_default(BARK_RULES_BRANCH, project.bootstrap)
 
     for rule in rules:
         if branch in rule.branches(project.repo):
@@ -95,7 +95,7 @@ def verify(
                 )
 
 
-def verify_all(project: Project, branch_rules: list[BranchRule]):
+def verify_all(project: Project, branch_rules: list[BranchRuleData]):
     """Verify all branches matching branch_rules."""
     violations = []
     for rule in branch_rules:
@@ -122,7 +122,7 @@ def verify_branch(
     branch: str,
     head: Commit,
     bootstrap: Commit,
-    branch_rule: Optional[BranchRule] = None,
+    branch_rule: Optional[BranchRuleData] = None,
 ) -> None:
     """Verify branch against branch rules and commit rules."""
     if branch_rule:

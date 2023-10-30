@@ -13,8 +13,8 @@
 # limitations under the License.
 
 from ..core import get_bark_rules, BARK_RULES, BARK_RULES_BRANCH
-from ..objects import BarkRules, BranchRule, CommitRuleData
-from ..git import Commit, transform_commit_rules, COMMIT_RULES, BARK_CONFIG
+from ..objects import BarkRules, BranchRuleData, RuleData
+from ..git import Commit, COMMIT_RULES, BARK_CONFIG
 from ..project import Project
 from ..util import cmd
 
@@ -102,10 +102,10 @@ def get_commit_rules(project: Project) -> dict:
         try:
             with open(cr_file, "r") as f:
                 commit_rules_yaml = f.read()
-            CommitRuleData.parse(
-                transform_commit_rules(commit_rules_yaml)
-            )  # try to parse the rules
-            return yaml.safe_load(commit_rules_yaml)
+            rules_data = yaml.safe_load(commit_rules_yaml)
+            # try to parse the rules
+            RuleData.parse(rules_data)
+            return rules_data
         except ValueError as e:
             raise e
 
@@ -226,9 +226,6 @@ def add_branches_interactive(project: Project, branch: str) -> None:
 
     click.echo(f"Configure how the '{branch}' branch should be validated!\n")
 
-    ff_only = click.confirm(
-        f"Do you want to enforce fast-forward changes on the '{branch}'?"
-    )
     bootstrap = project.repo.resolve_refish(branch)[0].id
     if not click.confirm(
         f"Do you want to verify the '{branch}' branch using "
@@ -238,7 +235,9 @@ def add_branches_interactive(project: Project, branch: str) -> None:
             "Enter the hash of the bootstrap commit you want to use"
         )
 
-    branch_rule = BranchRule(pattern=branch, bootstrap=str(bootstrap), ff_only=ff_only)
+    # TODO: Interactively add branch rules
+
+    branch_rule = BranchRuleData(pattern=branch, bootstrap=str(bootstrap), rules=[])
     bark_rules.branches.append(branch_rule)
 
     _confirm_bark_rules(bark_rules)
@@ -283,7 +282,6 @@ def add_modules_interactive(project: Project) -> None:
 
 
 def setup(project: Project) -> None:
-
     curr_branch = cmd("git", "symbolic-ref", "--short", "HEAD")[0]
 
     if not has_valid_bark_rules(project):
