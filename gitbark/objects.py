@@ -56,16 +56,17 @@ class RuleData:
 @dataclass
 class BranchRuleData:
     pattern: str
-    bootstrap: bytes
+    bootstrap: str
     rules: list
 
     @classmethod
     def parse(cls, branch_rule: dict) -> "BranchRuleData":
         try:
             pattern = branch_rule["pattern"]
-            bootstrap = bytes.fromhex(branch_rule["bootstrap"])
+            bootstrap = branch_rule["bootstrap"]
             rules = branch_rule.get("rules", [])
         except Exception:
+            raise
             raise ValueError("Cannot parse branch rule!")
 
         return cls(
@@ -76,7 +77,7 @@ class BranchRuleData:
 
     @classmethod
     def get_default(cls, pattern: str, bootstrap: bytes) -> "BranchRuleData":
-        return cls(pattern=pattern, bootstrap=bootstrap, rules=[])
+        return cls(pattern=pattern, bootstrap=bootstrap.hex(), rules=[])
 
     def branches(self, repo: Repository) -> list[str]:
         pattern = re.compile(self.pattern)
@@ -94,6 +95,7 @@ class BarkRules:
             branches = [BranchRuleData.parse(rule) for rule in bark_rules["branches"]]
             modules = bark_rules.get("modules", [])
         except Exception:
+            raise
             raise ValueError("Cannot parse bark_modules.yaml!")
 
         return cls(branches=branches, modules=modules)

@@ -97,8 +97,8 @@ class Project:
             self.create_db()
 
         self.cache = Cache(self.db_path)
-        self.bootstrap = self.get_bootstrap()
         self.repo = Repository(self.path)
+        self.bootstrap = self._load_bootstrap()
 
     @staticmethod
     def exists(path: str) -> bool:
@@ -129,18 +129,21 @@ class Project:
             "from distutils.sysconfig import get_python_lib; print(get_python_lib())",
         )[0]
 
-    def get_bootstrap(self) -> bytes:
+    def _load_bootstrap(self) -> Optional[Commit]:
         bootstrap_file = os.path.join(self.bark_directory, PROJECT_FILES.BOOTSTRAP)
         if os.path.exists(bootstrap_file):
             with open(bootstrap_file, "r") as f:
-                return bytes.fromhex(f.read())
-        return b""
+                commit_hash = bytes.fromhex(f.read())
+            if commit_hash:
+                return Commit(commit_hash, self.repo)
+        return None
 
-    def save_bootstrap(self) -> None:
-        bootstrap_file = os.path.join(self.bark_directory, PROJECT_FILES.BOOTSTRAP)
-        with open(bootstrap_file, "w") as f:
-            f.write(self.bootstrap.hex())
+    def _save_bootstrap(self) -> None:
+        if self.bootstrap:
+            bootstrap_file = os.path.join(self.bark_directory, PROJECT_FILES.BOOTSTRAP)
+            with open(bootstrap_file, "w") as f:
+                f.write(self.bootstrap.hash.hex())
 
     def update(self) -> None:
-        self.save_bootstrap()
+        self._save_bootstrap()
         self.cache.close()

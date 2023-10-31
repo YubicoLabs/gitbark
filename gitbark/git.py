@@ -67,7 +67,9 @@ class Commit:
     def __init__(self, hash: bytes, repo: Repository) -> None:
         """Init Commit with commit hash"""
         self.__repo = repo
-        self.__object: _Commit = self.__repo.get(hash)
+        if not isinstance(hash, bytes):
+            raise ValueError(f"HASH {hash}")
+        self.__object: _Commit = self.__repo.get(hash.hex())
 
     @property
     def hash(self) -> bytes:
@@ -103,7 +105,7 @@ class Commit:
         return self.__object.read_raw()
 
     def __eq__(self, other) -> bool:
-        return self.hash == other.hash
+        return other and self.hash == other.hash
 
     def __hash__(self) -> int:
         return int.from_bytes(self.hash, "big")

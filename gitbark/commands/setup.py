@@ -237,7 +237,7 @@ def add_branches_interactive(project: Project, branch: str) -> None:
 
     # TODO: Interactively add branch rules
 
-    branch_rule = BranchRuleData(pattern=branch, bootstrap=bootstrap.raw, rules=[])
+    branch_rule = BranchRuleData(pattern=branch, bootstrap=bootstrap, rules=[])
     bark_rules.branches.append(branch_rule)
 
     _confirm_bark_rules(bark_rules)

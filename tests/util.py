@@ -101,7 +101,7 @@ class Repo:
             )
 
         self.checkout(curr_branch)
-        return Commit(hash=self._repo.head.target, repo=self._repo)
+        return Commit(hash=self._repo.head.target.raw, repo=self._repo)
 
     def revert(self, rev: str, branch: Optional[str] = None) -> None:
         curr_branch = cmd("git", "symbolic-ref", "--short", "HEAD", cwd=self.repo_dir)[

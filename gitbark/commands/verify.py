@@ -22,16 +22,20 @@ from ..objects import BranchRuleData
 from ..git import Commit
 from ..rule import RuleViolation
 from ..project import Project
+from ..cli.util import CliFail
 
 from typing import Optional
 
 
 def verify_bark_rules(project: Project):
     """Verifies the bark_rules branch."""
-    bootstrap = Commit(project.bootstrap, project.repo)
     head = Commit(
         project.repo.lookup_branch(BARK_RULES_BRANCH).target.raw, project.repo
     )
+    bootstrap = project.bootstrap
+    if not bootstrap:
+        raise CliFail("No bootstrap commit selected")
+
     verify_branch(
         project=project,
         branch=BARK_RULES_BRANCH,
@@ -43,8 +47,12 @@ def verify_bark_rules(project: Project):
 def get_branch_rule(
     project: Project, branch: str, rules: list[BranchRuleData]
 ) -> Optional[BranchRuleData]:
+    bootstrap = project.bootstrap
+    if not bootstrap:
+        raise CliFail("No bootstrap commit selected")
+
     if branch == BARK_RULES_BRANCH:
-        return BranchRuleData.get_default(BARK_RULES_BRANCH, project.bootstrap)
+        return BranchRuleData.get_default(BARK_RULES_BRANCH, bootstrap.hash)
 
     for rule in rules:
         if branch in rule.branches(project.repo):
@@ -85,7 +93,7 @@ def verify(
             # Verify target branch
             branch_rule = get_branch_rule(project, branch, branch_rules)
             if branch_rule:
-                bootstrap = Commit(branch_rule.bootstrap, project.repo)
+                bootstrap = Commit(bytes.fromhex(branch_rule.bootstrap), project.repo)
             # TODO: raise some error if no branch_rule matches the branch
             if bootstrap:
                 verify_branch(
@@ -102,9 +110,9 @@ def verify_all(project: Project, branch_rules: list[BranchRuleData]):
     violations = []
     for rule in branch_rules:
         for branch in rule.branches(project.repo):
-            head_hash = project.repo.branches[branch].target
+            head_hash = project.repo.branches[branch].target.raw
             head = Commit(head_hash, project.repo)
-            bootstrap = Commit(rule.bootstrap, project.repo)
+            bootstrap = Commit(bytes.fromhex(rule.bootstrap), project.repo)
             try:
                 verify_branch(
                     project=project,

@@ -50,7 +50,7 @@ def _env_initialized_state(
     bootstrap_main = env.repo.commit("Initial commit.")
 
     branch_rule = BranchRuleData(
-        pattern="main", bootstrap=bootstrap_main.hash, rules=[]
+        pattern="main", bootstrap=bootstrap_main.hash.hex(), rules=[]
     )
     bark_rules = BarkRules(branches=[branch_rule], modules=[test_bark_module])
     env.repo.add_bark_rules(bark_rules)

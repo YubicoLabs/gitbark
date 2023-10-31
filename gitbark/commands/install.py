@@ -35,11 +35,16 @@ def install(project: Project) -> None:
 
 
 def bootstrap_verified(project: Project) -> bool:
-    try:
-        root_commit = cmd("git", "rev-list", "--max-parents=0", BARK_RULES_BRANCH)[0]
-    except Exception:
-        root_commit = ""
-    return root_commit == project.bootstrap
+    bootstrap = project.bootstrap
+    if bootstrap:
+        try:
+            root_commit = cmd("git", "rev-list", "--max-parents=0", BARK_RULES_BRANCH)[
+                0
+            ]
+            return root_commit == bootstrap.hash.hex()
+        except Exception:
+            pass  # Fall through
+    return False
 
 
 def is_installed(project: Project) -> bool:
