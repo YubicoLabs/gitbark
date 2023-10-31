@@ -56,14 +56,14 @@ class RuleData:
 @dataclass
 class BranchRuleData:
     pattern: str
-    bootstrap: str
+    bootstrap: bytes
     rules: list
 
     @classmethod
     def parse(cls, branch_rule: dict) -> "BranchRuleData":
         try:
             pattern = branch_rule["pattern"]
-            bootstrap = branch_rule["bootstrap"]
+            bootstrap = bytes.fromhex(branch_rule["bootstrap"])
             rules = branch_rule.get("rules", [])
         except Exception:
             raise ValueError("Cannot parse branch rule!")
@@ -75,7 +75,7 @@ class BranchRuleData:
         )
 
     @classmethod
-    def get_default(cls, pattern: str, bootstrap: str) -> "BranchRuleData":
+    def get_default(cls, pattern: str, bootstrap: bytes) -> "BranchRuleData":
         return cls(pattern=pattern, bootstrap=bootstrap, rules=[])
 
     def branches(self, repo: Repository) -> list[str]:

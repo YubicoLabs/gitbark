@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from .util import cmd
+from .git import Commit
 
 from typing import Generator, Optional
 from enum import Enum
@@ -35,30 +36,30 @@ class Cache:
     def __init__(self, db_path: str) -> None:
         self._db = sqlite3.connect(db_path)
 
-    def get(self, key: str) -> Optional[bool]:
+    def get(self, commit: Commit) -> Optional[bool]:
         entry = self._db.execute(
             "SELECT valid FROM cache_entries WHERE commit_hash = ? ",
-            [key],
+            [commit.hash.hex()],
         ).fetchone()
         return bool(entry[0]) if entry else None
 
-    def has(self, key: str) -> bool:
+    def has(self, commit: Commit) -> bool:
         res = self._db.execute(
             "SELECT EXISTS(SELECT 1 FROM cache_entries WHERE commit_hash = ?)",
-            [key],
+            [commit.hash.hex()],
         ).fetchone()
         return bool(res[0])
 
-    def set(self, key: str, valid: bool) -> None:
+    def set(self, commit: Commit, valid: bool) -> None:
         self._db.execute(
             "INSERT INTO cache_entries (commit_hash, valid) " "VALUES (?, ?)",
-            [key, int(valid)],
+            [commit.hash.hex(), int(valid)],
         )
 
-    def remove(self, key: str) -> None:
+    def remove(self, commit: Commit) -> None:
         self._db.execute(
             "DELETE FROM cache_entries WHERE commit_hash = ? ",
-            [key],
+            [commit.hash.hex()],
         )
 
     def close(self) -> None:
@@ -128,17 +129,17 @@ class Project:
             "from distutils.sysconfig import get_python_lib; print(get_python_lib())",
         )[0]
 
-    def get_bootstrap(self) -> str:
+    def get_bootstrap(self) -> bytes:
         bootstrap_file = os.path.join(self.bark_directory, PROJECT_FILES.BOOTSTRAP)
         if os.path.exists(bootstrap_file):
             with open(bootstrap_file, "r") as f:
-                return f.read()
-        return ""
+                return bytes.fromhex(f.read())
+        return b""
 
     def save_bootstrap(self) -> None:
         bootstrap_file = os.path.join(self.bark_directory, PROJECT_FILES.BOOTSTRAP)
         with open(bootstrap_file, "w") as f:
-            f.write(self.bootstrap)
+            f.write(self.bootstrap.hex())
 
     def update(self) -> None:
         self.save_bootstrap()

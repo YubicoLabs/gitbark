@@ -29,7 +29,9 @@ from typing import Optional
 def verify_bark_rules(project: Project):
     """Verifies the bark_rules branch."""
     bootstrap = Commit(project.bootstrap, project.repo)
-    head = Commit(project.repo.lookup_branch(BARK_RULES_BRANCH).target, project.repo)
+    head = Commit(
+        project.repo.lookup_branch(BARK_RULES_BRANCH).target.raw, project.repo
+    )
     verify_branch(
         project=project,
         branch=BARK_RULES_BRANCH,

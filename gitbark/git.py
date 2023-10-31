@@ -64,11 +64,18 @@ class Commit:
     This class serves as a wrapper for a Git commit object
     """
 
-    def __init__(self, hash: str, repo: Repository) -> None:
+    def __init__(self, hash: bytes, repo: Repository) -> None:
         """Init Commit with commit hash"""
         self.__repo = repo
         self.__object: _Commit = self.__repo.get(hash)
-        self.hash = str(hash)
+
+    @property
+    def hash(self) -> bytes:
+        return self.__object.id.raw
+
+    @property
+    def tree_hash(self) -> bytes:
+        return self.__object.tree_id.raw
 
     @property
     def author(self) -> tuple[str, str]:
@@ -78,7 +85,7 @@ class Commit:
     @property
     def parents(self) -> list["Commit"]:
         """The list of parent commits."""
-        return [Commit(hash, self.__repo) for hash in self.__object.parent_ids]
+        return [Commit(oid.raw, self.__repo) for oid in self.__object.parent_ids]
 
     @property
     def signature(self) -> tuple[bytes, bytes]:
@@ -99,11 +106,11 @@ class Commit:
         return self.hash == other.hash
 
     def __hash__(self) -> int:
-        return int(self.hash, base=16)
+        return int.from_bytes(self.hash, "big")
 
     def list_files(self, pattern: Union[list[str], str], root: str = "") -> set[str]:
         """List files matching a glob pattern in the commit."""
-        tree = self.__repo.revparse_single(f"{self.hash}:{root}")
+        tree = self.__repo.revparse_single(f"{self.hash.hex()}:{root}")
         if not isinstance(tree, Tree):
             raise ValueError(f"'{root}' does not point to a tree")
 
@@ -119,13 +126,13 @@ class Commit:
     def read_file(self, filename: str) -> bytes:
         """Read the file content of a file in the commit."""
         try:
-            return self.__repo.revparse_single(f"{self.hash}:{filename}").data
+            return self.__repo.revparse_single(f"{self.hash.hex()}:{filename}").data
         except KeyError:
             raise FileNotFoundError(f"'{filename}' does not exist in commit")
 
     def get_files_modified(self, other: "Commit") -> set[str]:
         """Get a list of files modified between two commits."""
-        diff = self.__repo.diff(self.hash, other.hash)
+        diff = self.__repo.diff(self.hash.hex(), other.hash.hex())
         modified: set[str] = set()
         for delta in diff.deltas:
             modified.update((delta.new_file.path, delta.old_file.path))

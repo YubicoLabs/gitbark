@@ -124,7 +124,7 @@ def has_valid_bark_rules(project: Project) -> bool:
         except Exception:
             raise CliFail(
                 "No valid commit rules found for the bootstrap commit "
-                f"({root_commit.hash}) on the '{BARK_RULES_BRANCH}' branch!"
+                f"({root_commit.hash.hex()}) on the '{BARK_RULES_BRANCH}' branch!"
             )
         return True
     else:
@@ -237,7 +237,7 @@ def add_branches_interactive(project: Project, branch: str) -> None:
 
     # TODO: Interactively add branch rules
 
-    branch_rule = BranchRuleData(pattern=branch, bootstrap=str(bootstrap), rules=[])
+    branch_rule = BranchRuleData(pattern=branch, bootstrap=bootstrap.raw, rules=[])
     bark_rules.branches.append(branch_rule)
 
     _confirm_bark_rules(bark_rules)

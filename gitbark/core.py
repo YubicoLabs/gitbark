@@ -34,7 +34,7 @@ def nearest_valid_ancestors(commit: Commit, cache: Cache) -> set[Commit]:
     parents = commit.parents
     valid_ancestors = set()
     for parent in parents:
-        if cache.get(parent.hash):
+        if cache.get(parent):
             valid_ancestors.add(parent)
         else:
             valid_ancestors.update(nearest_valid_ancestors(parent, cache))
@@ -74,19 +74,19 @@ def validate_commit(
     cache = project.cache
 
     # Re-validate if previously invalid
-    if cache.get(commit.hash) is False:
-        cache.remove(commit.hash)
+    if cache.get(commit) is False:
+        cache.remove(commit)
 
     violation: Optional[RuleViolation] = None
     to_validate = [commit]
     while to_validate:
         c = to_validate.pop()
-        if not cache.has(c.hash):
+        if not cache.has(c):
             if c == bootstrap:
-                cache.set(c.hash, True)
+                cache.set(c, True)
                 on_valid(c)
             else:
-                parents = [p for p in c.parents if not cache.has(p.hash)]
+                parents = [p for p in c.parents if not cache.has(p)]
                 if parents:
                     to_validate.append(c)
                     to_validate.extend(parents)
@@ -94,12 +94,12 @@ def validate_commit(
                     try:
                         validate_rules(c, project)
                         on_valid(c)
-                        cache.set(c.hash, True)
+                        cache.set(c, True)
                     except RuleViolation as e:
                         violation = e
-                        cache.set(c.hash, False)
+                        cache.set(c, False)
 
-    if not cache.get(commit.hash):
+    if not cache.get(commit):
         # N.B. last commit to be validated was 'commit'
         assert violation is not None
         raise violation
@@ -139,7 +139,7 @@ def validate_commit_rules(
     try:
         validate_commit(head, bootstrap, project, on_valid)
     except RuleViolation as e:
-        error_message = f"Validation errors for commit '{head.hash}'"
+        error_message = f"Validation errors for commit '{head.hash.hex()}'"
         if branch:
             error_message += f" on branch '{branch}'"
         raise RuleViolation(error_message, [e])
