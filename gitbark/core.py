@@ -122,7 +122,7 @@ def validate_branch_rules(
     """Validated HEAD of branch according to branch rules"""
     bark_rules_branch = project.repo.lookup_branch(BARK_RULES_BRANCH)
     validator = Commit(bark_rules_branch.target, project.repo)
-    rule_data = RuleData.parse(branch_rule.rules)
+    rule_data = RuleData.parse_list(branch_rule.rules)
     rule = BranchRule.load_rule(rule_data, validator, project.cache, project.repo)
     rule.validate(head, branch)
 

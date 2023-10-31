@@ -138,7 +138,7 @@ class Commit:
             rules_data = yaml.safe_load(commit_rules_blob)["rules"] or []
         except FileNotFoundError:
             rules_data = []
-        return RuleData.parse(rules_data)
+        return RuleData.parse_list(rules_data)
 
 
 @dataclass

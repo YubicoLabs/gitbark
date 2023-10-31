@@ -104,7 +104,7 @@ def get_commit_rules(project: Project) -> dict:
                 commit_rules_yaml = f.read()
             rules_data = yaml.safe_load(commit_rules_yaml)
             # try to parse the rules
-            RuleData.parse(rules_data)
+            RuleData.parse_list(rules_data)
             return rules_data
         except ValueError as e:
             raise e

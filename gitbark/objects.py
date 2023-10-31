@@ -24,20 +24,11 @@ class RuleData:
     args: Any
 
     @classmethod
-    def parse(cls, data: Union[str, list, dict]) -> "RuleData":
+    def parse(cls, data: Union[str, dict]) -> "RuleData":
         if isinstance(data, str):
             # No args, just the rule name
             return cls(id=data, args=None)
 
-        if isinstance(data, list):
-            # List of rules, combine with "all" if multiple, "none" if empty
-            if len(data) > 1:
-                data = {"all": data}
-            elif len(data) == 1:
-                data = data[0]
-            else:
-                data = {"none": None}
-            return cls.parse(data)
         try:
             # Rule has args
             rule_id, args = (k := next(iter(data)), data.pop(k))
@@ -49,6 +40,17 @@ class RuleData:
             return cls(id=rule_id, args=args)
         except Exception:
             raise ValueError("Cannot parse commit rule!")
+
+    @classmethod
+    def parse_list(cls, data: list) -> "RuleData":
+        # List of rules, combine with "all" if multiple, "none" if empty
+        if len(data) > 1:
+            args: dict[str, Any] = {"all": data}
+        elif len(data) == 1:
+            args = data[0]
+        else:
+            args = {"none": None}
+        return cls.parse(args)
 
 
 @dataclass
