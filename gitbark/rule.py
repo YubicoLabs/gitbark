@@ -18,7 +18,7 @@ from .project import Cache
 
 from abc import ABC, abstractmethod
 from pygit2 import Repository
-from typing import Any, Optional
+from typing import Any, Optional, ClassVar, Callable
 from importlib.metadata import entry_points
 
 
@@ -31,6 +31,8 @@ class RuleViolation(Exception):
 
 
 class _Rule(ABC):
+    setup: ClassVar[Optional[Callable[[], dict]]] = None
+
     def __init__(
         self,
         name: str,  # TODO: remove
@@ -150,7 +152,7 @@ class AnyBranchRule(_AnyRule, BranchRule):
 
 
 class NoneCommitRule(CommitRule):
-    def validate(self, commit: Commit, branch: Optional[str] = None):
+    def validate(self, commit: Commit):
         pass
 
 

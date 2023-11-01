@@ -104,7 +104,7 @@ def get_commit_rules(project: Project) -> dict:
                 commit_rules_yaml = f.read()
             rules_data = yaml.safe_load(commit_rules_yaml)
             # try to parse the rules
-            RuleData.parse_list(rules_data)
+            RuleData.parse_list(rules_data["rules"])
             return rules_data
         except ValueError as e:
             raise e
@@ -114,9 +114,9 @@ def has_valid_bark_rules(project: Project) -> bool:
     """Checks whether the bark_rules branch is correctly initialized"""
     if project.repo.lookup_branch(BARK_RULES_BRANCH):
         root_commit = Commit(
-            cmd("git", "rev-list", "--max-parents=0", BARK_RULES_BRANCH)[
-                0
-            ],  # root commit hash
+            bytes.fromhex(
+                cmd("git", "rev-list", "--max-parents=0", BARK_RULES_BRANCH)[0]
+            ),  # root commit hash
             project.repo,
         )
         try:
@@ -166,21 +166,26 @@ def add_rules_interactive(project: Project) -> None:
     curr_branch = cmd("git", "symbolic-ref", "--short", "HEAD")[0]
     commit_rules = get_commit_rules(project).get("rules", [])
 
-    bark_setup = entry_points(group="bark_setup")
-    bark_rules = entry_points(group="bark_rules")
+    bark_rules = [
+        (ep.name, ep.load()) for ep in entry_points(group="bark_commit_rules")
+    ]
     choices = {}
-    for idx, ep in enumerate(bark_setup):
-        name = ep.name
-        docs = bark_rules[name].load().__doc__
-        choices[idx] = (name, docs)
+    idx = 0
+    for name, rule in bark_rules:
+        if rule.setup:
+            choices[idx] = (name, rule)
+            idx += 1
+
+    if not choices:
+        raise CliFail("No configurable rules. Provide configuration manually.")
 
     click.echo(f"Specify Commit Rules for the '{curr_branch}' branch!")
     while True:
         newline()
         click.echo("Choose rule (leave blank to skip):")
-        max_length_rule_name = max(len(rule.name) for rule in bark_setup)
-        for choice, (name, description) in choices.items():
-            click.echo(f" [{choice}] {name:{max_length_rule_name}}\t\t{description}")
+        max_length_rule_name = max(len(name) for (name, _) in choices.values())
+        for choice, (name, rule) in choices.items():
+            click.echo(f" [{choice}] {name:{max_length_rule_name}}\t\t{rule.__doc__}")
 
         click_choices = [str(choice) for choice in choices.keys()]
         click_choices.append("")
@@ -196,11 +201,10 @@ def add_rules_interactive(project: Project) -> None:
         if not choice:
             break
 
-        rule_id, _ = choices[int(choice)]
+        rule_id, rule = choices[int(choice)]
         click.echo(f"Configure the {rule_id} rule!")
         newline()
-        init_cls = bark_setup[rule_id].load()
-        commit_rule = init_cls()
+        commit_rule = rule.setup()
         commit_rules.append(commit_rule)
 
     commit_rules = {"rules": commit_rules}
@@ -226,7 +230,7 @@ def add_branches_interactive(project: Project, branch: str) -> None:
 
     click.echo(f"Configure how the '{branch}' branch should be validated!\n")
 
-    bootstrap = project.repo.resolve_refish(branch)[0].id
+    bootstrap = project.repo.resolve_refish(branch)[0].id.hex
     if not click.confirm(
         f"Do you want to verify the '{branch}' branch using "
         f"commit {bootstrap} as bootstrap?"
