@@ -162,13 +162,8 @@ def remove_active_branch(project: Project):
     os.remove(f"{project.bark_directory}/{ACTIVE_BRANCH}")
 
 
-def add_commit_rules_interactive(project: Project) -> None:
-    curr_branch = cmd("git", "symbolic-ref", "--short", "HEAD")[0]
-    commit_rules = get_commit_rules(project).get("rules", [])
-
-    bark_rules = [
-        (ep.name, ep.load()) for ep in entry_points(group="bark_commit_rules")
-    ]
+def add_rules_interactive(ep_group: str, rules: list) -> None:
+    bark_rules = [(ep.name, ep.load()) for ep in entry_points(group=ep_group)]
     choices = {}
     idx = 0
     for name, rule in bark_rules:
@@ -179,7 +174,6 @@ def add_commit_rules_interactive(project: Project) -> None:
     if not choices:
         raise CliFail("No configurable rules. Provide configuration manually.")
 
-    click.echo(f"Specify Commit Rules for the '{curr_branch}' branch!")
     while True:
         newline()
         click.echo("Choose rule (leave blank to skip):")
@@ -204,11 +198,17 @@ def add_commit_rules_interactive(project: Project) -> None:
         rule_id, rule = choices[int(choice)]
         click.echo(f"Configure the {rule_id} rule!")
         newline()
-        commit_rule = rule.setup()
-        commit_rules.append(commit_rule)
+
+        rules.append(rule.setup())
+
+
+def add_commit_rules_interactive(project: Project) -> None:
+    commit_rules = get_commit_rules(project).get("rules", [])
+    curr_branch = cmd("git", "symbolic-ref", "--short", "HEAD")[0]
+    click.echo(f"Specify Commit Rules for the '{curr_branch}' branch!")
+    add_rules_interactive("bark_commit_rules", commit_rules)
 
     commit_rules = {"rules": commit_rules}
-
     _confirm_commit_rules(commit_rules)
 
     dump_and_stage(
@@ -219,49 +219,9 @@ def add_commit_rules_interactive(project: Project) -> None:
 
 
 def add_branch_rules_interactive(branch: str) -> list:
-    branch_rules = []
-
-    bark_rules = [
-        (ep.name, ep.load()) for ep in entry_points(group="bark_branch_rules")
-    ]
-    choices = {}
-    idx = 0
-    for name, rule in bark_rules:
-        if rule.setup:
-            choices[idx] = (name, rule)
-            idx += 1
-
-    if not choices:
-        raise CliFail("No configurable rules. Provide configuration manually.")
-
     click.echo(f"Specify Branch Rules for the '{branch}' branch!")
-    while True:
-        newline()
-        click.echo("Choose rule (leave blank to skip):")
-        max_length_rule_name = max(len(name) for (name, _) in choices.values())
-        for choice, (name, rule) in choices.items():
-            click.echo(f" [{choice}] {name:{max_length_rule_name}}\t\t{rule.__doc__}")
-
-        click_choices = [str(choice) for choice in choices.keys()]
-        click_choices.append("")
-        choice = click_prompt(
-            prompt="",
-            prompt_suffix=" >",
-            default="",
-            show_default=False,
-            type=click.Choice(click_choices),
-            show_choices=False,
-        )
-        newline()
-        if not choice:
-            break
-
-        rule_id, rule = choices[int(choice)]
-        click.echo(f"Configure the {rule_id} rule!")
-        newline()
-        branch_rule = rule.setup()
-        branch_rules.append(branch_rule)
-
+    branch_rules: list = []
+    add_rules_interactive("bark_branch_rules", branch_rules)
     return branch_rules
 
 
