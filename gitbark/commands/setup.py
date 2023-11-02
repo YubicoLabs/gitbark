@@ -162,7 +162,7 @@ def remove_active_branch(project: Project):
     os.remove(f"{project.bark_directory}/{ACTIVE_BRANCH}")
 
 
-def add_rules_interactive(project: Project) -> None:
+def add_commit_rules_interactive(project: Project) -> None:
     curr_branch = cmd("git", "symbolic-ref", "--short", "HEAD")[0]
     commit_rules = get_commit_rules(project).get("rules", [])
 
@@ -218,6 +218,53 @@ def add_rules_interactive(project: Project) -> None:
     )
 
 
+def add_branch_rules_interactive(branch: str) -> list:
+    branch_rules = []
+
+    bark_rules = [
+        (ep.name, ep.load()) for ep in entry_points(group="bark_branch_rules")
+    ]
+    choices = {}
+    idx = 0
+    for name, rule in bark_rules:
+        if rule.setup:
+            choices[idx] = (name, rule)
+            idx += 1
+
+    if not choices:
+        raise CliFail("No configurable rules. Provide configuration manually.")
+
+    click.echo(f"Specify Branch Rules for the '{branch}' branch!")
+    while True:
+        newline()
+        click.echo("Choose rule (leave blank to skip):")
+        max_length_rule_name = max(len(name) for (name, _) in choices.values())
+        for choice, (name, rule) in choices.items():
+            click.echo(f" [{choice}] {name:{max_length_rule_name}}\t\t{rule.__doc__}")
+
+        click_choices = [str(choice) for choice in choices.keys()]
+        click_choices.append("")
+        choice = click_prompt(
+            prompt="",
+            prompt_suffix=" >",
+            default="",
+            show_default=False,
+            type=click.Choice(click_choices),
+            show_choices=False,
+        )
+        newline()
+        if not choice:
+            break
+
+        rule_id, rule = choices[int(choice)]
+        click.echo(f"Configure the {rule_id} rule!")
+        newline()
+        branch_rule = rule.setup()
+        branch_rules.append(branch_rule)
+
+    return branch_rules
+
+
 def add_branches_interactive(project: Project, branch: str) -> None:
     curr_branch = cmd("git", "symbolic-ref", "--short", "HEAD")[0]
     if curr_branch != BARK_RULES_BRANCH:
@@ -239,9 +286,8 @@ def add_branches_interactive(project: Project, branch: str) -> None:
             "Enter the hash of the bootstrap commit you want to use"
         )
 
-    # TODO: Interactively add branch rules
-
-    branch_rule = BranchRuleData(pattern=branch, bootstrap=bootstrap, rules=[])
+    rules = add_branch_rules_interactive(branch)
+    branch_rule = BranchRuleData(pattern=branch, bootstrap=bootstrap, rules=rules)
     bark_rules.branches.append(branch_rule)
 
     _confirm_bark_rules(bark_rules)
@@ -296,7 +342,7 @@ def setup(project: Project) -> None:
 
         add_modules_interactive(project)
         newline()
-        add_rules_interactive(project)
+        add_commit_rules_interactive(project)
 
         _confirm_commit(commit_message="Add initial modules and rules (made by bark).")
 
@@ -307,7 +353,7 @@ def setup(project: Project) -> None:
         remove_active_branch(project)
 
     if not get_commit_rules(project):
-        add_rules_interactive(project)
+        add_commit_rules_interactive(project)
         _confirm_commit(commit_message="Initial rules (made by bark).")
 
     if curr_branch != BARK_RULES_BRANCH and not branch_in_bark_rules_yaml(

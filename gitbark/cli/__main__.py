@@ -18,7 +18,7 @@ from gitbark.commands.setup import (
     setup as setup_cmd,
     add_modules_interactive,
     add_branches_interactive,
-    add_rules_interactive,
+    add_commit_rules_interactive,
     _confirm_commit,
     checkout_or_orphan,
 )
@@ -70,7 +70,7 @@ def setup(ctx):
 def add_rules(ctx):
     """Add commit rules to a branch."""
     project = ctx.obj["project"]
-    add_rules_interactive(project)
+    add_commit_rules_interactive(project)
     _confirm_commit(
         commit_message="Modify commit rules (made by bark).",
         manual_action=(
