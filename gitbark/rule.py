@@ -13,12 +13,12 @@
 # limitations under the License.
 
 from .git import Commit
-from .objects import CommitRuleData
-from .project import Cache, Project
+from .objects import RuleData
+from .project import Cache
 
 from abc import ABC, abstractmethod
 from pygit2 import Repository
-from typing import Any, Optional
+from typing import Any, Optional, ClassVar, Callable
 from importlib.metadata import entry_points
 
 
@@ -30,7 +30,9 @@ class RuleViolation(Exception):
         self.sub_violations = sub_violations or []
 
 
-class Rule(ABC):
+class _Rule(ABC):
+    setup: ClassVar[Optional[Callable[[], dict]]] = None
+
     def __init__(
         self,
         name: str,  # TODO: remove
@@ -49,23 +51,48 @@ class Rule(ABC):
     def _parse_args(self, args: Any) -> None:
         pass
 
+    @staticmethod
+    @abstractmethod
+    def load_rule(
+        rule: RuleData, commit: Commit, cache: Cache, repo: Repository
+    ) -> "_Rule":
+        pass
+
+
+class CommitRule(_Rule):
     @abstractmethod
     def validate(self, commit: Commit) -> None:
         raise RuleViolation(f"{self}.validate is not defined")
 
-    def prepare_merge_msg(self, commit_msg_file: str) -> None:
-        pass
+    @staticmethod
+    def load_rule(
+        rule: RuleData, commit: Commit, cache: Cache, repo: Repository
+    ) -> "CommitRule":
+        rule_cls = entry_points(group="bark_commit_rules")[rule.id].load()
+        return rule_cls(rule.id, commit, cache, repo, rule.args)
 
 
-_COMPOSITE_SENTINEL = object()
+class BranchRule(_Rule):
+    @abstractmethod
+    def validate(self, commit: Commit, branch: str) -> None:
+        raise RuleViolation(f"{self}.validate is not defined")
+
+    @staticmethod
+    def load_rule(
+        rule: RuleData, commit: Commit, cache: Cache, repo: Repository
+    ) -> "BranchRule":
+        rule_cls = entry_points(group="bark_branch_rules")[rule.id].load()
+        return rule_cls(rule.id, commit, cache, repo, rule.args)
 
 
-class _CompositeRule(Rule):
+class _CompositeRule(_Rule):
     def _parse_args(self, args: Any):
-        if args is not _COMPOSITE_SENTINEL:
+        if all(isinstance(a, _Rule) for a in args):
+            self.sub_rules = args
+        else:
             self.sub_rules = [
-                create_rule(
-                    CommitRuleData.parse(data),
+                self.load_rule(
+                    RuleData.parse(data),
                     self.validator,
                     self.cache,
                     self.repo,
@@ -75,29 +102,22 @@ class _CompositeRule(Rule):
             if len(self.sub_rules) < 2:
                 raise ValueError("Composite rule must contain at least 2 child rules!")
 
-    @classmethod
-    def of(cls, name, commit, cache, repo, *rules: Rule) -> Rule:
-        rule = cls(name, commit, cache, repo, _COMPOSITE_SENTINEL)
-        rule.sub_rules = list(rules)
-        return rule
-
-    def _validate_children(self, commit: Commit) -> list[RuleViolation]:
+    def _validate_children(
+        self, commit: Commit, branch: Optional[str]
+    ) -> list[RuleViolation]:
+        args = (commit, branch) if branch is not None else (commit,)
         violations = []
         for rule in self.sub_rules:
             try:
-                rule.validate(commit)
+                rule.validate(*args)
             except RuleViolation as e:
                 violations.append(e)
         return violations
 
-    def prepare_merge_msg(self, commit_msg_file: str) -> None:
-        for rule in self.sub_rules:
-            rule.prepare_merge_msg(commit_msg_file)
 
-
-class AllRule(_CompositeRule):
-    def validate(self, commit: Commit):
-        violations = self._validate_children(commit)
+class _AllRule(_CompositeRule):
+    def validate(self, commit: Commit, branch: Optional[str] = None):
+        violations = self._validate_children(commit, branch)
         if violations:
             if len(violations) == 1:
                 raise violations[0]
@@ -106,30 +126,36 @@ class AllRule(_CompositeRule):
             )
 
 
-class AnyRule(_CompositeRule):
-    def validate(self, commit: Commit):
-        violations = self._validate_children(commit)
+class AllCommitRule(_AllRule, CommitRule):
+    pass
+
+
+class AllBranchRule(_AllRule, BranchRule):
+    pass
+
+
+class _AnyRule(_CompositeRule):
+    def validate(self, commit: Commit, branch: Optional[str] = None):
+        violations = self._validate_children(commit, branch)
         if len(self.sub_rules) - len(violations) <= 0:
             raise RuleViolation(
                 "One of the following conditions must be met:", violations
             )
 
 
-class NoneRule(Rule):
-    def validate(self, commit: Commit) -> None:
+class AnyCommitRule(_AnyRule, CommitRule):
+    pass
+
+
+class AnyBranchRule(_AnyRule, BranchRule):
+    pass
+
+
+class NoneCommitRule(CommitRule):
+    def validate(self, commit: Commit):
         pass
 
 
-def get_rule(commit: Commit, project: Project) -> Rule:
-    rule_data = commit.get_commit_rules()
-    return create_rule(rule_data, commit, project.cache, project.repo)
-
-
-def create_rule(
-    rule: CommitRuleData,
-    commit: Commit,
-    cache: Cache,
-    repo: Repository,
-) -> Rule:
-    rule_cls = entry_points(group="bark_rules")[rule.id].load()
-    return rule_cls(rule.id, commit, cache, repo, rule.args)
+class NoneBranchRule(BranchRule):
+    def validate(self, commit: Commit, branch: Optional[str] = None):
+        pass

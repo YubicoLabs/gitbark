@@ -14,14 +14,11 @@
 
 from gitbark.commands.verify import verify as verify_cmd
 from gitbark.commands.install import is_installed, install as install_cmd
-from gitbark.commands.prepare_merge_msg import (
-    prepare_merge_msg as prepare_merge_msg_cmd,
-)
 from gitbark.commands.setup import (
     setup as setup_cmd,
     add_modules_interactive,
     add_branches_interactive,
-    add_rules_interactive,
+    add_commit_rules_interactive,
     _confirm_commit,
     checkout_or_orphan,
 )
@@ -73,7 +70,7 @@ def setup(ctx):
 def add_rules(ctx):
     """Add commit rules to a branch."""
     project = ctx.obj["project"]
-    add_rules_interactive(project)
+    add_commit_rules_interactive(project)
     _confirm_commit(
         commit_message="Modify commit rules (made by bark).",
         manual_action=(
@@ -138,10 +135,11 @@ def install(ctx):
     if not repo.lookup_branch(BARK_RULES_BRANCH):
         raise CliFail('Error: The "bark_rules" branch has not been created!')
 
-    root_commit = cmd("git", "rev-list", "--max-parents=0", BARK_RULES_BRANCH)[0]
+    root_commit_hash = cmd("git", "rev-list", "--max-parents=0", BARK_RULES_BRANCH)[0]
+    root_commit = Commit(bytes.fromhex(root_commit_hash), repo)
     if root_commit != project.bootstrap:
         click.echo(
-            f"The bootstrap commit ({root_commit}) of the branch_rules "
+            f"The bootstrap commit ({root_commit.hash.hex()}) of the branch_rules "
             "branch has not been verified!"
         )
         click.confirm(
@@ -232,10 +230,10 @@ def verify(ctx, target, all, bootstrap, ref_update):
         if ref_update.ref_name not in project.repo.references:
             return
         branch = project.repo.references[ref_update.ref_name].shorthand
-        head = Commit(ref_update.new_ref, project.repo)
+        head = Commit(bytes.fromhex(ref_update.new_ref), project.repo)
     elif isinstance(target, Branch):
         branch = target.shorthand
-        head = Commit(target.target, project.repo)
+        head = Commit(target.target.raw, project.repo)
     else:
         if not bootstrap:
             ctx.fail(
@@ -255,20 +253,6 @@ def verify(ctx, target, all, bootstrap, ref_update):
         sys.exit(1)
     finally:
         project.update()
-
-
-@cli.command(hidden=True)
-@click.pass_context
-@click.argument("commit_msg_file")
-def prepare_merge_msg(ctx, commit_msg_file):
-    """Run merge hooks."""
-
-    project = ctx.obj["project"]
-    repo = project.repo
-
-    head = Commit(repo.head.target, repo)
-
-    prepare_merge_msg_cmd(head, project, commit_msg_file)
 
 
 class _DefaultFormatter(logging.Formatter):

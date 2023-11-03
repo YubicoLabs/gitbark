@@ -19,52 +19,65 @@ import re
 
 
 @dataclass
-class CommitRuleData:
+class RuleData:
     id: str
     args: Any
 
     @classmethod
-    def parse(cls, commit_rule: Union[str, dict]) -> "CommitRuleData":
-        if isinstance(commit_rule, str):
+    def parse(cls, data: Union[str, dict]) -> "RuleData":
+        if isinstance(data, str):
             # No args, just the rule name
-            return cls(id=commit_rule, args=None)
+            return cls(id=data, args=None)
+
         try:
             # Rule has args
-            rule_id, args = (k := next(iter(commit_rule)), commit_rule.pop(k))
-            if commit_rule:  # More keys, only valid if arg is None
+            rule_id, args = (k := next(iter(data)), data.pop(k))
+            if data:  # More keys, only valid if arg is None
                 if args is None:
-                    args = commit_rule
+                    args = data
                 else:
                     raise ValueError("Cannot parse commit rule!")
             return cls(id=rule_id, args=args)
         except Exception:
             raise ValueError("Cannot parse commit rule!")
 
+    @classmethod
+    def parse_list(cls, data: list) -> "RuleData":
+        # List of rules, combine with "all" if multiple, "none" if empty
+        if len(data) > 1:
+            args: dict[str, Any] = {"all": data}
+        elif len(data) == 1:
+            args = data[0]
+        else:
+            args = {"none": None}
+        return cls.parse(args)
+
 
 @dataclass
-class BranchRule:
+class BranchRuleData:
     pattern: str
     bootstrap: str
-    ff_only: bool
+    rules: list
 
     @classmethod
-    def parse(cls, branch_rule: dict) -> "BranchRule":
+    def parse(cls, branch_rule: dict) -> "BranchRuleData":
         try:
             pattern = branch_rule["pattern"]
             bootstrap = branch_rule["bootstrap"]
-            ff_only = branch_rule["ff_only"]
+            rules = branch_rule.get("rules", [])
         except Exception:
+            raise
             raise ValueError("Cannot parse branch rule!")
 
         return cls(
             pattern=pattern,
             bootstrap=bootstrap,
-            ff_only=ff_only,
+            rules=rules,
         )
 
     @classmethod
-    def get_default(cls, pattern: str, bootstrap: str) -> "BranchRule":
-        return cls(pattern=pattern, bootstrap=bootstrap, ff_only=True)
+    def get_default(cls, pattern: str, bootstrap: bytes) -> "BranchRuleData":
+        return cls(pattern=pattern, bootstrap=bootstrap.hex(), rules=[])
 
     def branches(self, repo: Repository) -> list[str]:
         pattern = re.compile(self.pattern)
@@ -73,18 +86,16 @@ class BranchRule:
 
 @dataclass
 class BarkRules:
-    branches: list[BranchRule]
+    branches: list[BranchRuleData]
     modules: list[str]
 
     @classmethod
     def parse(cls, bark_rules: dict) -> "BarkRules":
         try:
-            branches = [BranchRule.parse(rule) for rule in bark_rules["branches"]]
-            if "modules" not in bark_rules:
-                modules = []
-            else:
-                modules = bark_rules["modules"]
+            branches = [BranchRuleData.parse(rule) for rule in bark_rules["branches"]]
+            modules = bark_rules.get("modules", [])
         except Exception:
+            raise
             raise ValueError("Cannot parse bark_modules.yaml!")
 
         return cls(branches=branches, modules=modules)

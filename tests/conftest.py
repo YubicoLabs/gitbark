@@ -14,7 +14,7 @@
 
 from gitbark.cli.__main__ import cli, _DefaultFormatter
 from gitbark.cli.util import CliFail
-from gitbark.objects import BranchRule, BarkRules
+from gitbark.objects import BranchRuleData, BarkRules
 from gitbark.core import BARK_RULES_BRANCH
 
 from .util import Environment, disable_bark
@@ -49,8 +49,8 @@ def _env_initialized_state(
 
     bootstrap_main = env.repo.commit("Initial commit.")
 
-    branch_rule = BranchRule(
-        pattern="main", bootstrap=bootstrap_main.hash, ff_only=False
+    branch_rule = BranchRuleData(
+        pattern="main", bootstrap=bootstrap_main.hash.hex(), rules=[]
     )
     bark_rules = BarkRules(branches=[branch_rule], modules=[test_bark_module])
     env.repo.add_bark_rules(bark_rules)

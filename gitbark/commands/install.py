@@ -35,11 +35,16 @@ def install(project: Project) -> None:
 
 
 def bootstrap_verified(project: Project) -> bool:
-    try:
-        root_commit = cmd("git", "rev-list", "--max-parents=0", BARK_RULES_BRANCH)[0]
-    except Exception:
-        root_commit = ""
-    return root_commit == project.bootstrap
+    bootstrap = project.bootstrap
+    if bootstrap:
+        try:
+            root_commit = cmd("git", "rev-list", "--max-parents=0", BARK_RULES_BRANCH)[
+                0
+            ]
+            return root_commit == bootstrap.hash.hex()
+        except Exception:
+            pass  # Fall through
+    return False
 
 
 def is_installed(project: Project) -> bool:
@@ -51,21 +56,13 @@ def install_hooks(project: Project):
     reference_transaction_data = pkg_resources.resource_string(
         __name__, "hooks/reference_transaction"
     )
-    prepare_commit_msg_data = pkg_resources.resource_string(
-        __name__, "hooks/prepare-commit-msg"
-    )
 
     hooks_path = f"{project.path}/.git/hooks"
     reference_transaction_path = f"{hooks_path}/reference-transaction"
-    prepare_commit_msg_path = f"{hooks_path}/prepare-commit-msg"
 
     with open(reference_transaction_path, "wb") as f:
         f.write(reference_transaction_data)
     make_executable(reference_transaction_path)
-
-    with open(prepare_commit_msg_path, "wb") as f:
-        f.write(prepare_commit_msg_data)
-    make_executable(prepare_commit_msg_path)
 
     print(f"Hooks installed in {hooks_path}")
 
@@ -82,25 +79,15 @@ def hooks_installed(project: Project):
     reference_transaction_data = pkg_resources.resource_string(
         __name__, "hooks/reference_transaction"
     ).decode()
-    prepare_commit_msg_data = pkg_resources.resource_string(
-        __name__, "hooks/prepare-commit-msg"
-    ).decode()
 
     hooks_path = f"{project.path}/.git/hooks"
     reference_transaction_path = f"{hooks_path}/reference-transaction"
-    prepare_commit_msg_path = f"{hooks_path}/prepare-commit-msg"
 
-    if not os.path.exists(reference_transaction_path) or not os.path.exists(
-        prepare_commit_msg_path
-    ):
+    if not os.path.exists(reference_transaction_path):
         return False
 
     with open(reference_transaction_path, "r") as f:
         if not f.read() == reference_transaction_data:
-            return False
-
-    with open(prepare_commit_msg_path, "r") as f:
-        if not f.read() == prepare_commit_msg_data:
             return False
 
     return True

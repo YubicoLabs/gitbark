@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .objects import CommitRuleData
+from .objects import RuleData
 
 from dataclasses import dataclass
 from pygit2 import Commit as _Commit, Tree, Repository
@@ -58,28 +58,26 @@ def _glob_files(tree: Tree, patterns: list[list[str]], prefix="") -> set[str]:
     return matches
 
 
-def transform_commit_rules(commit_rules_yaml: Union[str, bytes]) -> Union[dict, str]:
-    rules = yaml.safe_load(commit_rules_yaml)["rules"] or []
-    if len(rules) > 1:
-        rules = {"all": rules}
-    elif len(rules) == 1:
-        rules = rules[0]
-    else:
-        rules = {"none": None}
-    return rules
-
-
 class Commit:
     """Git commit class
 
     This class serves as a wrapper for a Git commit object
     """
 
-    def __init__(self, hash: str, repo: Repository) -> None:
+    def __init__(self, hash: bytes, repo: Repository) -> None:
         """Init Commit with commit hash"""
         self.__repo = repo
-        self.__object: _Commit = self.__repo.get(hash)
-        self.hash = str(hash)
+        if not isinstance(hash, bytes):
+            raise ValueError(f"HASH {hash}")
+        self.__object: _Commit = self.__repo.get(hash.hex())
+
+    @property
+    def hash(self) -> bytes:
+        return self.__object.id.raw
+
+    @property
+    def tree_hash(self) -> bytes:
+        return self.__object.tree_id.raw
 
     @property
     def author(self) -> tuple[str, str]:
@@ -89,7 +87,7 @@ class Commit:
     @property
     def parents(self) -> list["Commit"]:
         """The list of parent commits."""
-        return [Commit(hash, self.__repo) for hash in self.__object.parent_ids]
+        return [Commit(oid.raw, self.__repo) for oid in self.__object.parent_ids]
 
     @property
     def signature(self) -> tuple[bytes, bytes]:
@@ -107,14 +105,14 @@ class Commit:
         return self.__object.read_raw()
 
     def __eq__(self, other) -> bool:
-        return self.hash == other.hash
+        return other and self.hash == other.hash
 
     def __hash__(self) -> int:
-        return int(self.hash, base=16)
+        return int.from_bytes(self.hash, "big")
 
     def list_files(self, pattern: Union[list[str], str], root: str = "") -> set[str]:
         """List files matching a glob pattern in the commit."""
-        tree = self.__repo.revparse_single(f"{self.hash}:{root}")
+        tree = self.__repo.revparse_single(f"{self.hash.hex()}:{root}")
         if not isinstance(tree, Tree):
             raise ValueError(f"'{root}' does not point to a tree")
 
@@ -130,26 +128,26 @@ class Commit:
     def read_file(self, filename: str) -> bytes:
         """Read the file content of a file in the commit."""
         try:
-            return self.__repo.revparse_single(f"{self.hash}:{filename}").data
+            return self.__repo.revparse_single(f"{self.hash.hex()}:{filename}").data
         except KeyError:
             raise FileNotFoundError(f"'{filename}' does not exist in commit")
 
     def get_files_modified(self, other: "Commit") -> set[str]:
         """Get a list of files modified between two commits."""
-        diff = self.__repo.diff(self.hash, other.hash)
+        diff = self.__repo.diff(self.hash.hex(), other.hash.hex())
         modified: set[str] = set()
         for delta in diff.deltas:
             modified.update((delta.new_file.path, delta.old_file.path))
         return modified
 
-    def get_commit_rules(self) -> CommitRuleData:
+    def get_commit_rules(self) -> RuleData:
         """Get the commit rules associated with a commit."""
         try:
             commit_rules_blob = self.read_file(COMMIT_RULES)
+            rules_data = yaml.safe_load(commit_rules_blob)["rules"] or []
         except FileNotFoundError:
-            commit_rules_blob = b"rules:"
-        rules = transform_commit_rules(commit_rules_blob)
-        return CommitRuleData.parse(rules)
+            rules_data = []
+        return RuleData.parse_list(rules_data)
 
 
 @dataclass
