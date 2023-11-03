@@ -15,7 +15,7 @@
 from gitbark.util import cmd
 from gitbark.objects import BarkRules
 from gitbark.commands.install import make_executable
-from gitbark.core import BARK_RULES, BARK_RULES_BRANCH
+from gitbark.core import BARK_RULES, BARK_RULES_BRANCH, BARK_REQUIREMENTS
 from gitbark.git import Commit, BARK_CONFIG, COMMIT_RULES
 
 from typing import Optional
@@ -129,7 +129,9 @@ class Repo:
         with open(file, "w") as f:
             f.write(content)
 
-    def add_bark_rules(self, bark_rules: BarkRules) -> None:
+    def add_bark_rules(
+        self, bark_rules: BarkRules, requirements: Optional[str] = None
+    ) -> None:
         curr_branch = cmd("git", "symbolic-ref", "--short", "HEAD", cwd=self.repo_dir)[
             0
         ]
@@ -138,6 +140,11 @@ class Repo:
             file=f"{self.repo_dir}/{BARK_RULES}",
             content=yaml.safe_dump(asdict(bark_rules), sort_keys=False),
         )
+        if requirements:
+            self._add_bark_files(
+                file=f"{self.repo_dir}/{BARK_REQUIREMENTS}",
+                content=requirements,
+            )
         self.commit("Add bark rules.")
         self.checkout(curr_branch)
 

@@ -87,15 +87,12 @@ class BranchRuleData:
 @dataclass
 class BarkRules:
     branches: list[BranchRuleData]
-    modules: list[str]
 
     @classmethod
     def parse(cls, bark_rules: dict) -> "BarkRules":
         try:
             branches = [BranchRuleData.parse(rule) for rule in bark_rules["branches"]]
-            modules = bark_rules.get("modules", [])
         except Exception:
-            raise
             raise ValueError("Cannot parse bark_modules.yaml!")
 
-        return cls(branches=branches, modules=modules)
+        return cls(branches=branches)

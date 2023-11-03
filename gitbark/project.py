@@ -117,9 +117,21 @@ class Project:
                 """
             )
 
-    def install_bark_module(self, bark_module: str) -> None:
-        pip_path = os.path.join(self.env_path, "bin", "pip")
-        cmd(pip_path, "install", bark_module)
+    def install_modules(self, requirements: bytes) -> None:
+        r_file = os.path.join(self.bark_directory, "requirements.txt")
+
+        if os.path.exists(r_file):
+            with open(r_file, "rb") as f:
+                old_reqs = f.read()
+        else:
+            old_reqs = b""
+
+        if requirements != old_reqs:
+            with open(r_file, "wb") as f:
+                f.write(requirements)
+
+            pip_path = os.path.join(self.env_path, "bin", "pip")
+            cmd(pip_path, "install", "-r", r_file)
 
     def get_env_site_packages(self) -> str:
         exec_path = os.path.join(self.env_path, "bin", "python")

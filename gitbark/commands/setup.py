@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ..core import get_bark_rules, BARK_RULES, BARK_RULES_BRANCH
+from ..core import get_bark_rules, BARK_RULES, BARK_RULES_BRANCH, BARK_REQUIREMENTS
 from ..objects import BarkRules, BranchRuleData, RuleData
 from ..git import Commit, COMMIT_RULES, BARK_CONFIG
 from ..project import Project
@@ -264,12 +264,8 @@ def add_modules_interactive(project: Project) -> None:
     if curr_branch != BARK_RULES_BRANCH:
         checkout_or_orphan(project, BARK_RULES_BRANCH)
 
-    try:
-        bark_rules = get_bark_rules(project)
-    except ValueError:
-        raise CliFail("'bark_modules.yaml' configuration is invalid!")
-
     click.echo("Define what Bark Modules to add!\n")
+    requirements = []
     while True:
         module = click_prompt(
             prompt="Module to add (leave blank to skip)",
@@ -279,15 +275,15 @@ def add_modules_interactive(project: Project) -> None:
         if not module:
             break
 
-        project.install_bark_module(module)
-        bark_rules.modules.append(module)
+        requirements.append(module)
 
-    _confirm_bark_rules(bark_rules)
+    content = "\n".join(requirements)
+    project.install_modules(content.encode())
 
     dump_and_stage(
         project=project,
-        file=f"{project.path}/{BARK_RULES}",
-        content=yaml.safe_dump(asdict(bark_rules), sort_keys=False),
+        file=f"{project.path}/{BARK_REQUIREMENTS}",
+        content=content,
     )
 
 
