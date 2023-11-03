@@ -135,7 +135,7 @@ def verify_branch(
     branch_rule: Optional[BranchRuleData] = None,
 ) -> None:
     """Verify branch against branch rules and commit rules."""
+    validate_commit_rules(project, head, bootstrap, branch)
+
     if branch_rule:
         validate_branch_rules(project, head, branch, branch_rule)
-
-    validate_commit_rules(project, head, bootstrap, branch)
