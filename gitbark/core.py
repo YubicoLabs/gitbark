@@ -149,12 +149,12 @@ def get_bark_rules(project: Project, commit: Optional[Commit] = None) -> BarkRul
 
     commit = commit or get_bark_rules_commit(project)
     if not commit:
-        return BarkRules([], [])
+        return BarkRules([])
 
     try:
         bark_rules_blob = commit.read_file(BARK_RULES)
     except FileNotFoundError:
-        return BarkRules([], [])
+        return BarkRules([])
 
     bark_rules_object = yaml.safe_load(bark_rules_blob)
     return BarkRules.parse(bark_rules_object)

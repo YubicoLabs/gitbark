@@ -18,7 +18,7 @@ from .project import Cache
 
 from abc import ABC, abstractmethod
 from pygit2 import Repository
-from typing import Any, Optional, ClassVar, Callable
+from typing import Any, Optional, ClassVar, Callable, Union
 from importlib.metadata import entry_points
 
 
@@ -31,7 +31,7 @@ class RuleViolation(Exception):
 
 
 class _Rule(ABC):
-    setup: ClassVar[Optional[Callable[[], dict]]] = None
+    setup: ClassVar[Optional[Callable[[], Union[dict, str]]]] = None
 
     def __init__(
         self,
