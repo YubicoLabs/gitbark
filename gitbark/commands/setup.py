@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ..core import get_bark_rules, BARK_RULES, BARK_RULES_BRANCH, BARK_REQUIREMENTS
+from ..core import get_bark_rules, BARK_RULES, BARK_RULES_REF, BARK_REQUIREMENTS
 from ..objects import BarkRules, BranchRuleData, RuleData
 from ..git import Commit, COMMIT_RULES, BARK_CONFIG
 from ..project import Project
-from ..util import cmd
+from ..util import cmd, branch_name
 
 from ..cli.util import click_prompt, CliFail
 
@@ -27,7 +27,6 @@ from typing import Optional
 import click
 import os
 import yaml
-import re
 
 ACTIVE_BRANCH = "active_branch"
 
@@ -82,16 +81,21 @@ def dump_and_stage(project: Project, file: str, content: str) -> None:
     cmd("git", "add", file)
 
 
-def checkout_or_orphan(project: Project, branch: str) -> None:
-    curr_branch = cmd("git", "symbolic-ref", "--short", "HEAD")[0]
-    if curr_branch == branch:
+def checkout_or_orphan(project: Project, ref: str) -> None:
+    curr_ref = cmd("git", "symbolic-ref", "HEAD")[0]
+    if curr_ref == ref:
         return
 
-    if not project.repo.lookup_branch(branch):
-        cmd("git", "checkout", "--orphan", branch)
+    try:
+        target = branch_name(ref)
+    except ValueError:
+        target = ref
+
+    if ref not in project.repo.references:
+        cmd("git", "checkout", "--orphan", target)
         cmd("git", "reset", "--hard")
     else:
-        cmd("git", "checkout", branch)
+        cmd("git", "checkout", target)
 
 
 def get_commit_rules(project: Project) -> dict:
@@ -112,10 +116,10 @@ def get_commit_rules(project: Project) -> dict:
 
 def has_valid_bark_rules(project: Project) -> bool:
     """Checks whether the bark_rules branch is correctly initialized"""
-    if project.repo.lookup_branch(BARK_RULES_BRANCH):
+    if BARK_RULES_REF in project.repo.references:
         root_commit = Commit(
             bytes.fromhex(
-                cmd("git", "rev-list", "--max-parents=0", BARK_RULES_BRANCH)[0]
+                cmd("git", "rev-list", "--max-parents=0", BARK_RULES_REF)[0]
             ),  # root commit hash
             project.repo,
         )
@@ -124,30 +128,24 @@ def has_valid_bark_rules(project: Project) -> bool:
         except Exception:
             raise CliFail(
                 "No valid commit rules found for the bootstrap commit "
-                f"({root_commit.hash.hex()}) on the '{BARK_RULES_BRANCH}' branch!"
+                f"({root_commit.hash.hex()}) on the "
+                f"'{branch_name(BARK_RULES_REF)}' branch!"
             )
         return True
     else:
         return False
 
 
-def branch_in_bark_rules_yaml(project: Project, branch: str) -> bool:
+def branch_in_bark_rules_yaml(project: Project, ref: str) -> bool:
     try:
-        branch_rules = get_bark_rules(project).branches
+        return bool(get_bark_rules(project).get_branch_rules(ref))
     except ValueError:
         raise CliFail("'bark_modules.yaml' configuration is invalid!")
 
-    for branch_rule in branch_rules:
-        pattern = re.compile(f".*{branch}")
-        for b in branch_rule.branches(project.repo):
-            if re.match(pattern, b):
-                return True
-    return False
 
-
-def save_active_branch(project: Project, branch: str) -> None:
+def save_active_branch(project: Project, ref: str) -> None:
     with open(f"{project.bark_directory}/{ACTIVE_BRANCH}", "w") as f:
-        f.write(branch)
+        f.write(ref)
 
 
 def get_active_branch(project: Project) -> Optional[str]:
@@ -218,26 +216,27 @@ def add_commit_rules_interactive(project: Project) -> None:
     )
 
 
-def add_branch_rules_interactive(branch: str) -> list:
-    click.echo(f"Specify Branch Rules for the '{branch}' branch!")
+def add_branch_rules_interactive(ref: str) -> list:
+    click.echo(f"Specify Branch Rules for the '{branch_name(ref)}' branch!")
     branch_rules: list = []
     add_rules_interactive("bark_branch_rules", branch_rules)
     return branch_rules
 
 
-def add_branches_interactive(project: Project, branch: str) -> None:
-    curr_branch = cmd("git", "symbolic-ref", "--short", "HEAD")[0]
-    if curr_branch != BARK_RULES_BRANCH:
-        checkout_or_orphan(project, BARK_RULES_BRANCH)
+def add_branches_interactive(project: Project, ref: str) -> None:
+    curr_ref = cmd("git", "symbolic-ref", "HEAD")[0]
+    if curr_ref != BARK_RULES_REF:
+        checkout_or_orphan(project, BARK_RULES_REF)
 
     try:
         bark_rules = get_bark_rules(project)
     except ValueError:
         raise CliFail("'bark_modules.yaml' configuration is invalid!")
 
+    branch = branch_name(ref)
     click.echo(f"Configure how the '{branch}' branch should be validated!\n")
 
-    bootstrap = project.repo.resolve_refish(branch)[0].id.hex
+    bootstrap = project.repo.references[ref].hash.hex()
     if not click.confirm(
         f"Do you want to verify the '{branch}' branch using "
         f"commit {bootstrap} as bootstrap?"
@@ -246,7 +245,7 @@ def add_branches_interactive(project: Project, branch: str) -> None:
             "Enter the hash of the bootstrap commit you want to use"
         )
 
-    rules = add_branch_rules_interactive(branch)
+    rules = add_branch_rules_interactive(ref)
     branch_rule = BranchRuleData(pattern=branch, bootstrap=bootstrap, rules=rules)
     bark_rules.branches.append(branch_rule)
 
@@ -260,9 +259,9 @@ def add_branches_interactive(project: Project, branch: str) -> None:
 
 
 def add_modules_interactive(project: Project) -> None:
-    curr_branch = cmd("git", "symbolic-ref", "--short", "HEAD")[0]
-    if curr_branch != BARK_RULES_BRANCH:
-        checkout_or_orphan(project, BARK_RULES_BRANCH)
+    curr_ref = cmd("git", "symbolic-ref", "--short", "HEAD")[0]
+    if curr_ref != BARK_RULES_REF:
+        checkout_or_orphan(project, BARK_RULES_REF)
 
     click.echo("Define what Bark Modules to add!\n")
     requirements = []
@@ -288,13 +287,13 @@ def add_modules_interactive(project: Project) -> None:
 
 
 def setup(project: Project) -> None:
-    curr_branch = cmd("git", "symbolic-ref", "--short", "HEAD")[0]
+    curr_ref = cmd("git", "symbolic-ref", "HEAD")[0]
 
     if not has_valid_bark_rules(project):
-        if curr_branch != BARK_RULES_BRANCH:
-            save_active_branch(project, curr_branch)
-            checkout_or_orphan(project, BARK_RULES_BRANCH)
-            curr_branch = BARK_RULES_BRANCH
+        if curr_ref != BARK_RULES_REF:
+            save_active_branch(project, curr_ref)
+            checkout_or_orphan(project, BARK_RULES_REF)
+            curr_ref = BARK_RULES_REF
 
         add_modules_interactive(project)
         newline()
@@ -302,24 +301,22 @@ def setup(project: Project) -> None:
 
         _confirm_commit(commit_message="Add initial modules and rules (made by bark).")
 
-    active_branch = get_active_branch(project)
-    if active_branch:  # checkout if we have an active branch
-        checkout_or_orphan(project, active_branch)
-        curr_branch = active_branch
+    active_ref = get_active_branch(project)
+    if active_ref:  # checkout if we have an active branch
+        checkout_or_orphan(project, active_ref)
+        curr_ref = active_ref
         remove_active_branch(project)
 
     if not get_commit_rules(project):
         add_commit_rules_interactive(project)
         _confirm_commit(commit_message="Initial rules (made by bark).")
 
-    if curr_branch != BARK_RULES_BRANCH and not branch_in_bark_rules_yaml(
-        project, curr_branch
-    ):
-        cmd("git", "checkout", BARK_RULES_BRANCH)
-        add_branches_interactive(project, curr_branch)
-        _confirm_commit(f"Add {curr_branch} to bark_rules (made by bark).")
+    if curr_ref != BARK_RULES_REF and not branch_in_bark_rules_yaml(project, curr_ref):
+        cmd("git", "checkout", branch_name(BARK_RULES_REF))
+        add_branches_interactive(project, curr_ref)
+        _confirm_commit(f"Add {curr_ref} to bark_rules (made by bark).")
         cmd(
-            "git", "checkout", curr_branch
+            "git", "checkout", branch_name(curr_ref)
         )  # run this if the commit was made in interactive mode
 
     click.echo("Bark is initialized!")

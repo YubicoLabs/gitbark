@@ -12,12 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .git import Commit
+from .git import Commit, Repository
 from .objects import RuleData
 from .project import Cache
 
 from abc import ABC, abstractmethod
-from pygit2 import Repository
 from typing import Any, Optional, ClassVar, Callable, Union
 from importlib.metadata import entry_points
 
