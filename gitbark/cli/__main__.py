@@ -265,7 +265,6 @@ def main():
         _add_subcommands(cli)
         cli(obj={})
     except Exception as e:
-        raise e
         status = 1
         msg = e.args[0]
         if isinstance(e, CliFail):
