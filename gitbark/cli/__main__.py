@@ -23,10 +23,10 @@ from gitbark.commands.setup import (
     checkout_or_orphan,
 )
 
-from gitbark.core import BARK_RULES_BRANCH
+from gitbark.core import BARK_RULES_REF
 from gitbark.project import Project
 from gitbark.rule import RuleViolation
-from gitbark.util import cmd
+from gitbark.util import cmd, branch_name
 from gitbark.git import Commit, ReferenceUpdate
 from .util import (
     BarkContextObject,
@@ -40,7 +40,7 @@ from .util import (
 import click
 import logging
 import sys
-from pygit2 import Branch
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -86,15 +86,15 @@ def add_rules(ctx):
 def add_modules(ctx):
     """Add bark modules."""
     project = ctx.obj["project"]
-    curr_branch = cmd("git", "symbolic-ref", "--short", "HEAD")[0]
+    curr_ref = cmd("git", "symbolic-ref", "HEAD")[0]
     add_modules_interactive(project)
     _confirm_commit(
         commit_message="Modify bark modules (made by bark).",
         manual_action=(
-            "The 'bark_rules.yaml' file has been staged. " "Please commit the changes!"
+            "The 'bark_rules.yaml' file has been staged. Please commit the changes!"
         ),
     )
-    checkout_or_orphan(project, curr_branch)
+    checkout_or_orphan(project, curr_ref)
     click.echo("Bark modules configuration was committed successfully!")
 
 
@@ -108,15 +108,15 @@ def protect(ctx):
     automatically.
     """
     project = ctx.obj["project"]
-    curr_branch = cmd("git", "symbolic-ref", "--short", "HEAD")[0]
-    add_branches_interactive(project, curr_branch)
+    curr_ref = cmd("git", "symbolic-ref", "HEAD")[0]
+    add_branches_interactive(project, curr_ref)
     _confirm_commit(
         commit_message="Modify bark modules (made by bark).",
         manual_action=(
             "The 'bark_rules.yaml' file has been staged. " "Please commit the changes!"
         ),
     )
-    checkout_or_orphan(project, curr_branch)
+    checkout_or_orphan(project, curr_ref)
     click.echo("Bark modules configuration was committed successfully!")
 
 
@@ -132,10 +132,10 @@ def install(ctx):
     project = ctx.obj["project"]
 
     repo = project.repo
-    if not repo.lookup_branch(BARK_RULES_BRANCH):
+    if BARK_RULES_REF not in repo.references:
         raise CliFail('Error: The "bark_rules" branch has not been created!')
 
-    root_commit_hash = cmd("git", "rev-list", "--max-parents=0", BARK_RULES_BRANCH)[0]
+    root_commit_hash = cmd("git", "rev-list", "--max-parents=0", BARK_RULES_REF)[0]
     root_commit = Commit(bytes.fromhex(root_commit_hash), repo)
     if root_commit != project.bootstrap:
         click.echo(
@@ -160,25 +160,10 @@ def install(ctx):
 
 
 @click_callback()
-def click_parse_commit_or_branch(ctx, param, val):
-    project = ctx.obj["project"]
-
-    try:
-        commit, ref = project.repo.resolve_refish(val)
-        if commit and not ref:  # val is commit
-            return commit
-        else:
-            return project.repo.branches[ref.shorthand]  # val is a branch
-
-    except KeyError:
-        raise CliFail(f"{val} is not a valid commit or branch!")
-
-
-@click_callback()
 def click_parse_bootstrap(ctx, param, val):
     project = ctx.obj["project"]
     if val:
-        return Commit(val, project.repo)
+        return Commit(bytes.fromhex(val), project.repo)
     return None
 
 
@@ -190,7 +175,7 @@ def click_parse_ref_update(ctx, param, val):
 
 @cli.command()
 @click.pass_context
-@click.argument("target", callback=click_parse_commit_or_branch, default="HEAD")
+@click.argument("target", default="HEAD")
 @click.option(
     "-a",
     "--all",
@@ -225,29 +210,34 @@ def verify(ctx, target, all, bootstrap, ref_update):
     if not is_installed(project):
         raise CliFail("Bark is not installed! Run 'bark install' first!")
 
-    branch = None
     if ref_update:
         if ref_update.ref_name not in project.repo.references:
             return
-        branch = project.repo.references[ref_update.ref_name].shorthand
+        ref = ref_update.ref_name
         head = Commit(bytes.fromhex(ref_update.new_ref), project.repo)
-    elif isinstance(target, Branch):
-        branch = target.shorthand
-        head = Commit(target.target.raw, project.repo)
     else:
-        if not bootstrap:
+        head, ref = project.repo.resolve(target)
+        if not ref and not bootstrap:
             ctx.fail(
                 "verifying a single commit requires specifying a bootstrap with -b"
             )
-        head = Commit(target.id, project.repo)
 
+    fail_head = os.path.join(project.bark_directory, "FAIL_HEAD")
     try:
-        verify_cmd(project, branch, head, bootstrap, all)
+        verify_cmd(project, ref, head, bootstrap, all)
         if all:
             click.echo("Repository is in valid state!")
         elif not ref_update:
-            click.echo(f"{branch} is in a valid state!")
+            if ref:
+                click.echo(f"Branch {branch_name(ref)} is in a valid state!")
+            else:
+                click.echo(f"Commit {head.hash.hex()} is in a valid state!")
+        if os.path.exists(fail_head):
+            os.remove(fail_head)
     except RuleViolation as e:
+        if ref_update:
+            with open(fail_head, "w") as f:
+                f.write(head.hash.hex())
         # TODO: Error message here?
         pp_violation(e)
         sys.exit(1)

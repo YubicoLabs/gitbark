@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from .util import cmd, branch_name
 from .git import Commit, BARK_CONFIG
 from .project import Cache, Project
 from .rule import RuleViolation, CommitRule, AllCommitRule, BranchRule
@@ -19,7 +20,7 @@ from .objects import BranchRuleData, BarkRules, RuleData
 from typing import Callable, Optional
 import yaml
 
-BARK_RULES_BRANCH = "bark_rules"
+BARK_RULES_REF = "refs/heads/bark_rules"
 BARK_RULES = f"{BARK_CONFIG}/bark_rules.yaml"
 BARK_REQUIREMENTS = f"{BARK_CONFIG}/requirements.txt"
 
@@ -65,12 +66,30 @@ def validate_rules(commit: Commit, project: Project) -> None:
         raise RuleViolation(f"invalid commit rules: {e}")
 
 
+def is_descendant(prev: Commit, new: Commit) -> bool:
+    """Checks that the current tip is a descendant of the old tip"""
+
+    _, exit_status = cmd(
+        "git",
+        "merge-base",
+        "--is-ancestor",
+        prev.hash.hex(),
+        new.hash.hex(),
+        check=False,
+    )
+
+    return exit_status == 0
+
+
 def validate_commit(
     commit: Commit,
     bootstrap: Commit,
     project: Project,
     on_valid: Callable[[Commit], None],
 ) -> None:
+    if not is_descendant(bootstrap, commit):
+        raise RuleViolation(f"Bootstrap '{bootstrap.hash.hex()}' is not an ancestor")
+
     cache = project.cache
 
     # Re-validate if previously invalid
@@ -106,22 +125,21 @@ def validate_commit(
 
 
 def validate_branch_rules(
-    project: Project, head: Commit, branch: str, branch_rule: BranchRuleData
+    project: Project, head: Commit, ref: str, branch_rule: BranchRuleData
 ) -> None:
     """Validated HEAD of branch according to branch rules"""
-    bark_rules_branch = project.repo.lookup_branch(BARK_RULES_BRANCH)
-    validator = Commit(bark_rules_branch.target.raw, project.repo)
+    validator = project.repo.references[BARK_RULES_REF]
     rule_data = RuleData.parse_list(branch_rule.rules)
     rule = BranchRule.load_rule(rule_data, validator, project.cache, project.repo)
-    rule.validate(head, branch)
+    rule.validate(head, ref)
 
 
 def validate_commit_rules(
-    project: Project, head: Commit, bootstrap: Commit, branch: Optional[str] = None
+    project: Project, head: Commit, bootstrap: Commit, ref: Optional[str] = None
 ) -> None:
     """Validates commit rules on branch"""
     on_valid: Callable[[Commit], None] = lambda commit: None
-    if branch == BARK_RULES_BRANCH:
+    if ref == BARK_RULES_REF:
         # Need to update modules on each validated commit
         def on_valid(commit: Commit) -> None:
             requirements = commit.read_file(BARK_REQUIREMENTS)
@@ -131,17 +149,14 @@ def validate_commit_rules(
         validate_commit(head, bootstrap, project, on_valid)
     except RuleViolation as e:
         error_message = f"Validation errors for commit '{head.hash.hex()}'"
-        if branch:
-            error_message += f" on branch '{branch}'"
+        if ref:
+            error_message += f" on branch '{branch_name(ref)}'"
         raise RuleViolation(error_message, [e])
 
 
 def get_bark_rules_commit(project: Project) -> Optional[Commit]:
     """Gets the latest commit on bark_rules."""
-    bark_rules_branch = project.repo.lookup_branch(BARK_RULES_BRANCH)
-    if not bark_rules_branch:
-        return None
-    return Commit(bark_rules_branch.target.raw, project.repo)
+    return project.repo.references.get(BARK_RULES_REF)
 
 
 def get_bark_rules(project: Project, commit: Optional[Commit] = None) -> BarkRules:

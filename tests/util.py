@@ -12,14 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from gitbark.util import cmd
+from gitbark.util import cmd, branch_name
 from gitbark.objects import BarkRules
 from gitbark.commands.install import make_executable
-from gitbark.core import BARK_RULES, BARK_RULES_BRANCH, BARK_REQUIREMENTS
-from gitbark.git import Commit, BARK_CONFIG, COMMIT_RULES
+from gitbark.core import BARK_RULES, BARK_RULES_REF, BARK_REQUIREMENTS
+from gitbark.git import Commit, BARK_CONFIG, COMMIT_RULES, Repository
 
 from typing import Optional
-from pygit2 import Repository
 from dataclasses import asdict
 from contextlib import contextmanager
 
@@ -49,7 +48,7 @@ class Repo:
 
     @property
     def head(self) -> str:
-        return str(self._repo.head.target)
+        return self._repo.head.hash.hex()
 
     def initialize_git(self) -> None:
         cmd("git", "init", cwd=self.repo_dir)
@@ -101,7 +100,7 @@ class Repo:
             )
 
         self.checkout(curr_branch)
-        return Commit(hash=self._repo.head.target.raw, repo=self._repo)
+        return self._repo.head
 
     def revert(self, rev: str, branch: Optional[str] = None) -> None:
         curr_branch = cmd("git", "symbolic-ref", "--short", "HEAD", cwd=self.repo_dir)[
@@ -113,13 +112,14 @@ class Repo:
         self.checkout(curr_branch)
 
     def checkout(self, branch: str, orphan: bool = False) -> None:
-        if not self._repo.lookup_branch(branch):
+        try:
+            self._repo.resolve(branch)  # Check if exists
+            cmd("git", "checkout", branch, cwd=self.repo_dir)
+        except KeyError:
             if orphan:
                 cmd("git", "checkout", "--orphan", branch, cwd=self.repo_dir)
             else:
                 cmd("git", "checkout", "-b", branch, cwd=self.repo_dir)
-        else:
-            cmd("git", "checkout", branch, cwd=self.repo_dir)
 
     def _add_bark_files(self, file: str, content: str) -> None:
         bark_folder = f"{self.repo_dir}/{BARK_CONFIG}"
@@ -135,7 +135,7 @@ class Repo:
         curr_branch = cmd("git", "symbolic-ref", "--short", "HEAD", cwd=self.repo_dir)[
             0
         ]
-        self.checkout(BARK_RULES_BRANCH, orphan=True)
+        self.checkout(branch_name(BARK_RULES_REF), orphan=True)
         self._add_bark_files(
             file=f"{self.repo_dir}/{BARK_RULES}",
             content=yaml.safe_dump(asdict(bark_rules), sort_keys=False),

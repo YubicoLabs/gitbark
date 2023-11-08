@@ -27,3 +27,12 @@ def cmd(*cmd: str, check: bool = True, **kwargs: Any):
             raise e
         else:
             return e.stdout, e.returncode
+
+
+BRANCH_PREFIX = "refs/heads/"
+
+
+def branch_name(ref: str) -> str:
+    if ref.startswith(BRANCH_PREFIX):
+        return ref[len(BRANCH_PREFIX) :]
+    raise ValueError(f"Ref does not describe a branch: '{ref}'")

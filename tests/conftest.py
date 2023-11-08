@@ -15,7 +15,8 @@
 from gitbark.cli.__main__ import cli, _DefaultFormatter
 from gitbark.cli.util import CliFail
 from gitbark.objects import BranchRuleData, BarkRules
-from gitbark.core import BARK_RULES_BRANCH
+from gitbark.core import BARK_RULES_REF
+from gitbark.util import branch_name
 
 from .util import Environment, disable_bark
 
@@ -83,10 +84,12 @@ def _env_bark_rules_invalid_state(
     env, _ = _env_installed_state
 
     always_fail_rules = {"rules": [{"always_fail": None}]}
-    env.repo.add_commit_rules(commit_rules=always_fail_rules, branch=BARK_RULES_BRANCH)
+    env.repo.add_commit_rules(
+        commit_rules=always_fail_rules, branch=branch_name(BARK_RULES_REF)
+    )
 
     with disable_bark(env.repo) as repo:
-        repo.commit(branch=BARK_RULES_BRANCH)
+        repo.commit(branch=branch_name(BARK_RULES_REF))
 
     dump_path = tmp_path_factory.mktemp("dump")
     env.dump(dump_path)

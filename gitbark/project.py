@@ -13,11 +13,10 @@
 # limitations under the License.
 
 from .util import cmd
-from .git import Commit
+from .git import Commit, Repository
 
 from typing import Generator, Optional
 from enum import Enum
-from pygit2 import Repository
 import os
 import sqlite3
 import contextlib
@@ -88,8 +87,7 @@ class Project:
             os.makedirs(self.bark_directory, exist_ok=True)
 
         if not os.path.exists(self.env_path):
-            os.makedirs(self.env_path, exist_ok=True)
-            cmd(sys.executable, "-m", "venv", self.env_path, cwd=self.path)
+            self.create_env()
 
         sys.path.append(self.get_env_site_packages())
 
@@ -117,6 +115,10 @@ class Project:
                 """
             )
 
+    def create_env(self) -> None:
+        os.makedirs(self.env_path, exist_ok=True)
+        cmd(sys.executable, "-m", "venv", self.env_path, cwd=self.path)
+
     def install_modules(self, requirements: bytes) -> None:
         r_file = os.path.join(self.bark_directory, "requirements.txt")
 
@@ -138,7 +140,7 @@ class Project:
         return cmd(
             exec_path,
             "-c",
-            "from distutils.sysconfig import get_python_lib; print(get_python_lib())",
+            "from sysconfig import get_paths; print(get_paths()['purelib'])",
         )[0]
 
     def _load_bootstrap(self) -> Optional[Commit]:

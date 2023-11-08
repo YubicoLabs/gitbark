@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from .util import branch_name
 from dataclasses import dataclass
 from typing import Union, Any
-from pygit2 import Repository
 import re
 
 
@@ -79,10 +79,6 @@ class BranchRuleData:
     def get_default(cls, pattern: str, bootstrap: bytes) -> "BranchRuleData":
         return cls(pattern=pattern, bootstrap=bootstrap.hex(), rules=[])
 
-    def branches(self, repo: Repository) -> list[str]:
-        pattern = re.compile(self.pattern)
-        return [branch for branch in list(repo.branches.local) if pattern.match(branch)]
-
 
 @dataclass
 class BarkRules:
@@ -96,3 +92,12 @@ class BarkRules:
             raise ValueError("Cannot parse bark_modules.yaml!")
 
         return cls(branches=branches)
+
+    def get_branch_rules(self, ref: str) -> list[BranchRuleData]:
+        branch = branch_name(ref)
+        rules = []
+        for data in self.branches:
+            pattern = re.compile(data.pattern)
+            if pattern.match(branch):
+                rules.append(data)
+        return rules

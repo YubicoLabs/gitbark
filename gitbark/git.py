@@ -15,8 +15,8 @@
 from .objects import RuleData
 
 from dataclasses import dataclass
-from pygit2 import Commit as _Commit, Tree, Repository
-from typing import Union
+from pygit2 import Commit as _Commit, Tree, Repository as _Repository
+from typing import Union, Tuple, Optional
 import yaml
 import re
 
@@ -64,45 +64,45 @@ class Commit:
     This class serves as a wrapper for a Git commit object
     """
 
-    def __init__(self, hash: bytes, repo: Repository) -> None:
+    def __init__(self, hash: bytes, repo: "Repository") -> None:
         """Init Commit with commit hash"""
-        self.__repo = repo
+        self.repo = repo
         if not isinstance(hash, bytes):
-            raise ValueError(f"HASH {hash}")
-        self.__object: _Commit = self.__repo.get(hash.hex())
+            raise ValueError(f"Commit hash is not bytes {hash}")
+        self._object: _Commit = repo._object.get(hash.hex())
 
     @property
     def hash(self) -> bytes:
-        return self.__object.id.raw
+        return self._object.id.raw
 
     @property
     def tree_hash(self) -> bytes:
-        return self.__object.tree_id.raw
+        return self._object.tree_id.raw
 
     @property
     def author(self) -> tuple[str, str]:
         """A tuple with the author name and email."""
-        return self.__object.author.name, self.__object.author.email
+        return self._object.author.name, self._object.author.email
 
     @property
     def parents(self) -> list["Commit"]:
         """The list of parent commits."""
-        return [Commit(oid.raw, self.__repo) for oid in self.__object.parent_ids]
+        return [Commit(oid.raw, self.repo) for oid in self._object.parent_ids]
 
     @property
     def signature(self) -> tuple[bytes, bytes]:
         """A tuple with the signature and subject."""
-        return self.__object.gpg_signature
+        return self._object.gpg_signature
 
     @property
     def message(self) -> str:
         """The commit message."""
-        return self.__object.message
+        return self._object.message
 
     @property
     def object(self) -> bytes:
         """The raw commit object."""
-        return self.__object.read_raw()
+        return self._object.read_raw()
 
     def __eq__(self, other) -> bool:
         return other and self.hash == other.hash
@@ -112,7 +112,7 @@ class Commit:
 
     def list_files(self, pattern: Union[list[str], str], root: str = "") -> set[str]:
         """List files matching a glob pattern in the commit."""
-        tree = self.__repo.revparse_single(f"{self.hash.hex()}:{root}")
+        tree = self.repo._object.revparse_single(f"{self.hash.hex()}:{root}")
         if not isinstance(tree, Tree):
             raise ValueError(f"'{root}' does not point to a tree")
 
@@ -128,13 +128,15 @@ class Commit:
     def read_file(self, filename: str) -> bytes:
         """Read the file content of a file in the commit."""
         try:
-            return self.__repo.revparse_single(f"{self.hash.hex()}:{filename}").data
+            return self.repo._object.revparse_single(
+                f"{self.hash.hex()}:{filename}"
+            ).data
         except KeyError:
             raise FileNotFoundError(f"'{filename}' does not exist in commit")
 
     def get_files_modified(self, other: "Commit") -> set[str]:
         """Get a list of files modified between two commits."""
-        diff = self.__repo.diff(self.hash.hex(), other.hash.hex())
+        diff = self.repo._object.diff(self.hash.hex(), other.hash.hex())
         modified: set[str] = set()
         for delta in diff.deltas:
             modified.update((delta.new_file.path, delta.old_file.path))
@@ -148,6 +150,28 @@ class Commit:
         except FileNotFoundError:
             rules_data = []
         return RuleData.parse_list(rules_data)
+
+
+class Repository:
+    """Git repo wrapper class"""
+
+    def __init__(self, path: str) -> None:
+        self._object = _Repository(path)
+
+    @property
+    def head(self) -> Commit:
+        return Commit(self._object.head.target.raw, self)
+
+    @property
+    def references(self) -> dict[str, Commit]:
+        return {
+            ref.name: Commit(ref.target.raw, self)
+            for ref in self._object.references.iterator()
+        }
+
+    def resolve(self, name: str) -> Tuple[Commit, Optional[str]]:
+        commit, ref = self._object.resolve_refish(name)
+        return Commit(commit.id.raw, self), (ref.name if ref else None)
 
 
 @dataclass

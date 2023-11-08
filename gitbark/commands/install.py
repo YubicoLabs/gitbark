@@ -15,7 +15,7 @@
 from .verify import verify
 from ..project import Project
 from ..util import cmd
-from ..core import BARK_RULES_BRANCH
+from ..core import BARK_RULES_REF
 
 import pkg_resources
 import os
@@ -38,9 +38,7 @@ def bootstrap_verified(project: Project) -> bool:
     bootstrap = project.bootstrap
     if bootstrap:
         try:
-            root_commit = cmd("git", "rev-list", "--max-parents=0", BARK_RULES_BRANCH)[
-                0
-            ]
+            root_commit = cmd("git", "rev-list", "--max-parents=0", BARK_RULES_REF)[0]
             return root_commit == bootstrap.hash.hex()
         except Exception:
             pass  # Fall through
