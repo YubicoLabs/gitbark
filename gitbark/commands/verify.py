@@ -80,15 +80,16 @@ def verify_all(project: Project, bark_rules: BarkRules):
     """Verify all branches matching branch_rules."""
     violations = []
     for ref, head in project.repo.references.items():
-        try:
-            verify_branch(
-                project=project,
-                ref=ref,
-                head=head,
-                bark_rules=bark_rules,
-            )
-        except RuleViolation as e:
-            violations.append(e)
+        if ref.startswith("refs/heads/"):
+            try:
+                verify_branch(
+                    project=project,
+                    ref=ref,
+                    head=head,
+                    bark_rules=bark_rules,
+                )
+            except RuleViolation as e:
+                violations.append(e)
     if violations:
         raise RuleViolation("Not all branches were valid", violations)
 
