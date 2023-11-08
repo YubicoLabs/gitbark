@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .util import branch_name
+from .util import cmd, branch_name
 from .git import Commit, BARK_CONFIG
 from .project import Cache, Project
 from .rule import RuleViolation, CommitRule, AllCommitRule, BranchRule
@@ -66,12 +66,30 @@ def validate_rules(commit: Commit, project: Project) -> None:
         raise RuleViolation(f"invalid commit rules: {e}")
 
 
+def is_descendant(prev: Commit, new: Commit) -> bool:
+    """Checks that the current tip is a descendant of the old tip"""
+
+    _, exit_status = cmd(
+        "git",
+        "merge-base",
+        "--is-ancestor",
+        prev.hash.hex(),
+        new.hash.hex(),
+        check=False,
+    )
+
+    return exit_status == 0
+
+
 def validate_commit(
     commit: Commit,
     bootstrap: Commit,
     project: Project,
     on_valid: Callable[[Commit], None],
 ) -> None:
+    if not is_descendant(bootstrap, commit):
+        raise RuleViolation(f"Bootstrap '{bootstrap.hash.hex()}' is not an ancestor")
+
     cache = project.cache
 
     # Re-validate if previously invalid
