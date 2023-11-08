@@ -16,12 +16,12 @@ from .git import Commit, BARK_CONFIG
 from .project import Cache, Project
 from .rule import RuleViolation, CommitRule, AllCommitRule, BranchRule
 from .objects import BranchRuleData, BarkRules, RuleData
-from functools import partial
 from typing import Callable, Optional
 import yaml
 
 BARK_RULES_BRANCH = "bark_rules"
 BARK_RULES = f"{BARK_CONFIG}/bark_rules.yaml"
+BARK_REQUIREMENTS = f"{BARK_CONFIG}/requirements.txt"
 
 
 def get_commit_rule(commit: Commit, project: Project) -> CommitRule:
@@ -105,17 +105,6 @@ def validate_commit(
         raise violation
 
 
-def update_modules(project: Project, branch: str, commit: Commit) -> None:
-    bark_modules = get_bark_rules(project, commit).modules
-    prev_bark_modules = [
-        set(get_bark_rules(project, p).modules) for p in commit.parents
-    ]
-
-    for module in bark_modules:
-        if not prev_bark_modules or any(module not in p for p in prev_bark_modules):
-            project.install_bark_module(module)
-
-
 def validate_branch_rules(
     project: Project, head: Commit, branch: str, branch_rule: BranchRuleData
 ) -> None:
@@ -134,7 +123,9 @@ def validate_commit_rules(
     on_valid: Callable[[Commit], None] = lambda commit: None
     if branch == BARK_RULES_BRANCH:
         # Need to update modules on each validated commit
-        on_valid = partial(update_modules, project, branch)
+        def on_valid(commit: Commit) -> None:
+            requirements = commit.read_file(BARK_REQUIREMENTS)
+            project.install_modules(requirements)
 
     try:
         validate_commit(head, bootstrap, project, on_valid)
@@ -145,20 +136,25 @@ def validate_commit_rules(
         raise RuleViolation(error_message, [e])
 
 
+def get_bark_rules_commit(project: Project) -> Optional[Commit]:
+    """Gets the latest commit on bark_rules."""
+    bark_rules_branch = project.repo.lookup_branch(BARK_RULES_BRANCH)
+    if not bark_rules_branch:
+        return None
+    return Commit(bark_rules_branch.target.raw, project.repo)
+
+
 def get_bark_rules(project: Project, commit: Optional[Commit] = None) -> BarkRules:
     """Returns the latest branch_rules"""
 
+    commit = commit or get_bark_rules_commit(project)
     if not commit:
-        bark_rules_branch = project.repo.lookup_branch(BARK_RULES_BRANCH)
-        if not bark_rules_branch:
-            return BarkRules([], [])
-
-        commit = Commit(bark_rules_branch.target.raw, project.repo)
+        return BarkRules([])
 
     try:
         bark_rules_blob = commit.read_file(BARK_RULES)
     except FileNotFoundError:
-        return BarkRules([], [])
+        return BarkRules([])
 
     bark_rules_object = yaml.safe_load(bark_rules_blob)
     return BarkRules.parse(bark_rules_object)

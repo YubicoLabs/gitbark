@@ -52,8 +52,8 @@ def _env_initialized_state(
     branch_rule = BranchRuleData(
         pattern="main", bootstrap=bootstrap_main.hash.hex(), rules=[]
     )
-    bark_rules = BarkRules(branches=[branch_rule], modules=[test_bark_module])
-    env.repo.add_bark_rules(bark_rules)
+    bark_rules = BarkRules(branches=[branch_rule])
+    env.repo.add_bark_rules(bark_rules, test_bark_module)
 
     dump_path = tmp_path_factory.mktemp("dump")
     env.dump(dump_path)
