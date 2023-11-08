@@ -235,8 +235,9 @@ def verify(ctx, target, all, bootstrap, ref_update):
         if os.path.exists(fail_head):
             os.remove(fail_head)
     except RuleViolation as e:
-        with open(fail_head, "w") as f:
-            f.write(head.hash.hex())
+        if ref_update:
+            with open(fail_head, "w") as f:
+                f.write(head.hash.hex())
         # TODO: Error message here?
         pp_violation(e)
         sys.exit(1)
