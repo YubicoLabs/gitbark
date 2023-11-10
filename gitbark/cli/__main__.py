@@ -133,7 +133,7 @@ def install(ctx):
 
     repo = project.repo
     if BARK_RULES_BRANCH not in repo.branches:
-        raise CliFail('Error: The "bark_rules" branch has not been created!')
+        raise CliFail('The "bark_rules" branch has not been created!')
 
     root_commit_hash = cmd("git", "rev-list", "--max-parents=0", BARK_RULES_BRANCH)[0]
     root_commit = Commit(bytes.fromhex(root_commit_hash), repo)
@@ -218,7 +218,7 @@ def verify(ctx, target, all, bootstrap, ref_update):
     else:
         head, ref = project.repo.resolve(target)
         if not ref and not bootstrap:
-            ctx.fail(
+            raise CliFail(
                 "verifying a single commit requires specifying a bootstrap with -b"
             )
 
@@ -252,13 +252,13 @@ class _DefaultFormatter(logging.Formatter):
     def format(self, record):
         message = f"{record.levelname}: {record.getMessage()}"
         if self.show_trace and record.exc_info:
-            message += self.formatException(record.exc_info)
+            message += "\n" + self.formatException(record.exc_info)
         return message
 
 
 def main():
     handler = logging.StreamHandler()
-    handler.setLevel(logging.WARNING)
+    handler.setLevel(logging.INFO)
     formatter = _DefaultFormatter(True)
     handler.setFormatter(formatter)
     logging.getLogger().addHandler(handler)
@@ -267,10 +267,12 @@ def main():
         cli(obj={})
     except Exception as e:
         status = 1
-        msg = e.args[0]
         if isinstance(e, CliFail):
             status = e.status
             msg = e.args[0]
+        else:
+            msg = "An unexpected error occured."
+            formatter.show_trace = True
         logger.exception(msg)
         sys.exit(status)
 

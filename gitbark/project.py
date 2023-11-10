@@ -116,8 +116,19 @@ class Project:
             )
 
     def create_env(self) -> None:
+        # Create venv
         os.makedirs(self.env_path, exist_ok=True)
         cmd(sys.executable, "-m", "venv", self.env_path, cwd=self.path)
+
+        # Add additional site-packages
+        exec_path = os.path.join(self.env_path, "bin", "python")
+        env_path = cmd(exec_path, "-c", "import sys; print(':'.join(sys.path))")[
+            0
+        ].split(":")
+        additional = [p for p in sys.path[1:] if p not in env_path]
+        env_site = self.get_env_site_packages()
+        with open(os.path.join(env_site, "gitbark.pth"), "w") as f:
+            f.write("\n".join(additional))
 
     def install_modules(self, requirements: bytes) -> None:
         r_file = os.path.join(self.bark_directory, "requirements.txt")
