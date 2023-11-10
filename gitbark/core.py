@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .util import cmd, branch_name
+from .util import cmd, BRANCH_REF_PREFIX
 from .git import Commit, BARK_CONFIG
 from .project import Cache, Project
 from .rule import RuleViolation, CommitRule, AllCommitRule, BranchRule
@@ -20,7 +20,8 @@ from .objects import BranchRuleData, BarkRules, RuleData
 from typing import Callable, Optional
 import yaml
 
-BARK_RULES_REF = "refs/heads/bark_rules"
+BARK_RULES_BRANCH = "bark_rules"
+BARK_RULES_REF = f"{BRANCH_REF_PREFIX}{BARK_RULES_BRANCH}"
 BARK_RULES = f"{BARK_CONFIG}/bark_rules.yaml"
 BARK_REQUIREMENTS = f"{BARK_CONFIG}/requirements.txt"
 
@@ -135,22 +136,20 @@ def validate_branch_rules(
 
 
 def validate_commit_rules(
-    project: Project, head: Commit, bootstrap: Commit, ref: Optional[str] = None
+    project: Project,
+    head: Commit,
+    bootstrap: Commit,
+    on_valid: Callable[[Commit], None] = lambda commit: None,
 ) -> None:
     """Validates commit rules on branch"""
-    on_valid: Callable[[Commit], None] = lambda commit: None
-    if ref == BARK_RULES_REF:
-        # Need to update modules on each validated commit
-        def on_valid(commit: Commit) -> None:
-            requirements = commit.read_file(BARK_REQUIREMENTS)
-            project.install_modules(requirements)
+    if head == bootstrap:
+        on_valid(bootstrap)
+        return
 
     try:
         validate_commit(head, bootstrap, project, on_valid)
     except RuleViolation as e:
-        error_message = f"Validation errors for commit '{head.hash.hex()}'"
-        if ref:
-            error_message += f" on branch '{branch_name(ref)}'"
+        error_message = f"Validation errors for commit '{head}'"
         raise RuleViolation(error_message, [e])
 
 

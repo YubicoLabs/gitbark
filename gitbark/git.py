@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from .objects import RuleData
+from .util import cmd, BRANCH_REF_PREFIX
 
 from dataclasses import dataclass
 from pygit2 import Commit as _Commit, Tree, Repository as _Repository
@@ -89,6 +90,22 @@ class Commit:
         """The list of parent commits."""
         return [Commit(oid.raw, self.repo) for oid in self._object.parent_ids]
 
+    def _get_info(self) -> str:
+        return cmd(
+            "git", "log", "-n1", "--pretty=oneline", "--decorate=full", self.hash.hex()
+        )[0]
+
+    @property
+    def references(self) -> list[str]:
+        """The list of refs pointing to the commit."""
+        info = self._get_info()
+        info = info[info.index("(") + 1 : info.index(")")]
+        parts = info.split(", ")
+        refs = parts[1:]
+        if parts[0].startswith("HEAD -> "):
+            refs.insert(0, parts[0].split()[-1])
+        return refs
+
     @property
     def signature(self) -> tuple[bytes, bytes]:
         """A tuple with the signature and subject."""
@@ -103,6 +120,9 @@ class Commit:
     def object(self) -> bytes:
         """The raw commit object."""
         return self._object.read_raw()
+
+    def __str__(self) -> str:
+        return self._get_info()
 
     def __eq__(self, other) -> bool:
         return other and self.hash == other.hash
@@ -163,15 +183,31 @@ class Repository:
         return Commit(self._object.head.target.raw, self)
 
     @property
+    def branch(self) -> Optional[str]:
+        if self._object.head_is_unborn:
+            ref = self._object.references["HEAD"].target
+            if ref.startswith(BRANCH_REF_PREFIX):
+                return ref[len(BRANCH_REF_PREFIX) :]
+        if not self._object.head_is_detached:
+            return self._object.head.shorthand
+        return None
+
+    @property
     def references(self) -> dict[str, Commit]:
         return {
             ref.name: Commit(ref.target.raw, self)
             for ref in self._object.references.iterator()
         }
 
+    @property
+    def branches(self) -> list[str]:
+        return list(self._object.branches.local)
+
     def resolve(self, name: str) -> Tuple[Commit, Optional[str]]:
         commit, ref = self._object.resolve_refish(name)
-        return Commit(commit.id.raw, self), (ref.name if ref else None)
+        return Commit(commit.id.raw, self), (
+            ref.name if ref and ref.name.startswith("refs/") else None
+        )
 
 
 @dataclass
