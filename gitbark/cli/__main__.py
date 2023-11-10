@@ -23,7 +23,7 @@ from gitbark.commands.setup import (
     checkout_or_orphan,
 )
 
-from gitbark.core import BARK_RULES_REF
+from gitbark.core import BARK_RULES_BRANCH
 from gitbark.project import Project
 from gitbark.rule import RuleViolation
 from gitbark.util import cmd, branch_name
@@ -86,7 +86,7 @@ def add_rules(ctx):
 def add_modules(ctx):
     """Add bark modules."""
     project = ctx.obj["project"]
-    curr_ref = cmd("git", "symbolic-ref", "HEAD")[0]
+    branch = project.repo.branch
     add_modules_interactive(project)
     _confirm_commit(
         commit_message="Modify bark modules (made by bark).",
@@ -94,7 +94,7 @@ def add_modules(ctx):
             "The 'bark_rules.yaml' file has been staged. Please commit the changes!"
         ),
     )
-    checkout_or_orphan(project, curr_ref)
+    checkout_or_orphan(project, branch)
     click.echo("Bark modules configuration was committed successfully!")
 
 
@@ -108,15 +108,15 @@ def protect(ctx):
     automatically.
     """
     project = ctx.obj["project"]
-    curr_ref = cmd("git", "symbolic-ref", "HEAD")[0]
-    add_branches_interactive(project, curr_ref)
+    branch = project.repo.branch
+    add_branches_interactive(project, branch)
     _confirm_commit(
         commit_message="Modify bark modules (made by bark).",
         manual_action=(
-            "The 'bark_rules.yaml' file has been staged. " "Please commit the changes!"
+            "The 'bark_rules.yaml' file has been staged. Please commit the changes!"
         ),
     )
-    checkout_or_orphan(project, curr_ref)
+    checkout_or_orphan(project, branch)
     click.echo("Bark modules configuration was committed successfully!")
 
 
@@ -132,10 +132,10 @@ def install(ctx):
     project = ctx.obj["project"]
 
     repo = project.repo
-    if BARK_RULES_REF not in repo.references:
+    if BARK_RULES_BRANCH not in repo.branches:
         raise CliFail('Error: The "bark_rules" branch has not been created!')
 
-    root_commit_hash = cmd("git", "rev-list", "--max-parents=0", BARK_RULES_REF)[0]
+    root_commit_hash = cmd("git", "rev-list", "--max-parents=0", BARK_RULES_BRANCH)[0]
     root_commit = Commit(bytes.fromhex(root_commit_hash), repo)
     if root_commit != project.bootstrap:
         click.echo(
@@ -259,7 +259,7 @@ class _DefaultFormatter(logging.Formatter):
 def main():
     handler = logging.StreamHandler()
     handler.setLevel(logging.WARNING)
-    formatter = _DefaultFormatter()
+    formatter = _DefaultFormatter(True)
     handler.setFormatter(formatter)
     logging.getLogger().addHandler(handler)
     try:

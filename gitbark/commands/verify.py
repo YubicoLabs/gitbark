@@ -17,6 +17,7 @@ from ..core import (
     validate_branch_rules,
     get_bark_rules,
     BARK_RULES_REF,
+    BARK_REQUIREMENTS,
 )
 from ..objects import BarkRules
 from ..git import Commit
@@ -34,7 +35,11 @@ def verify_bark_rules(project: Project):
     if not bootstrap:
         raise CliFail("No bootstrap commit selected")
 
-    validate_commit_rules(project, head, bootstrap, BARK_RULES_REF)
+    def on_valid(commit: Commit) -> None:
+        requirements = commit.read_file(BARK_REQUIREMENTS)
+        project.install_modules(requirements)
+
+    validate_commit_rules(project, head, bootstrap, on_valid)
 
 
 def verify(
@@ -55,7 +60,6 @@ def verify(
             project=project,
             head=head,
             bootstrap=bootstrap,
-            ref=ref,
         )
     else:
         verify_bark_rules(project)
@@ -79,17 +83,19 @@ def verify(
 def verify_all(project: Project, bark_rules: BarkRules):
     """Verify all branches matching branch_rules."""
     violations = []
-    for ref, head in project.repo.references.items():
-        if ref.startswith("refs/heads/"):
-            try:
-                verify_branch(
-                    project=project,
-                    ref=ref,
-                    head=head,
-                    bark_rules=bark_rules,
-                )
-            except RuleViolation as e:
-                violations.append(e)
+    for branch in project.repo.branches:
+        head, ref = project.repo.resolve(branch)
+        assert ref
+        try:
+            verify_branch(
+                project=project,
+                ref=ref,
+                head=head,
+                bark_rules=bark_rules,
+            )
+        except RuleViolation as e:
+            violations.append(e)
+
     if violations:
         raise RuleViolation("Not all branches were valid", violations)
 
@@ -104,5 +110,6 @@ def verify_branch(
 
     for rule in bark_rules.get_branch_rules(ref):
         bootstrap = Commit(bytes.fromhex(rule.bootstrap), project.repo)
-        validate_commit_rules(project, head, bootstrap, ref)
-        validate_branch_rules(project, head, ref, rule)
+        if bootstrap != head:
+            validate_commit_rules(project, head, bootstrap)
+            validate_branch_rules(project, head, ref, rule)
