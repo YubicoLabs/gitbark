@@ -36,12 +36,13 @@ def newline() -> None:
 
 
 def _confirm_commit(
+    project: Project,
     commit_message: str,
     prompt: str = "Do you want 'bark' to commit the changes?",
     manual_action: str = "Please commit the changes and run 'bark setup' to continue!",
 ):
     if click.confirm(prompt):
-        cmd("git", "commit", "-m", commit_message)
+        project.repo.commit(message=commit_message)
         newline()
     else:
         click.echo(manual_action)
@@ -79,23 +80,6 @@ def dump_and_stage(project: Project, file: str, content: str) -> None:
     with open(file, "w") as f:
         f.write(content)
     cmd("git", "add", file)
-
-
-def checkout_or_orphan(project: Project, ref: str) -> None:
-    curr_ref = cmd("git", "symbolic-ref", "HEAD")[0]
-    if curr_ref == ref:
-        return
-
-    try:
-        target = branch_name(ref)
-    except ValueError:
-        target = ref
-
-    if ref not in project.repo.references:
-        cmd("git", "checkout", "--orphan", target)
-        cmd("git", "reset", "--hard")
-    else:
-        cmd("git", "checkout", target)
 
 
 def get_commit_rules(project: Project) -> dict:
@@ -224,9 +208,7 @@ def add_branch_rules_interactive(ref: str) -> list:
 
 
 def add_branches_interactive(project: Project, ref: str) -> None:
-    curr_ref = cmd("git", "symbolic-ref", "HEAD")[0]
-    if curr_ref != BARK_RULES_REF:
-        checkout_or_orphan(project, BARK_RULES_REF)
+    project.repo.checkout(branch_name(BARK_RULES_REF), True)
 
     try:
         bark_rules = get_bark_rules(project)
@@ -259,9 +241,7 @@ def add_branches_interactive(project: Project, ref: str) -> None:
 
 
 def add_modules_interactive(project: Project) -> None:
-    curr_ref = cmd("git", "symbolic-ref", "--short", "HEAD")[0]
-    if curr_ref != BARK_RULES_REF:
-        checkout_or_orphan(project, BARK_RULES_REF)
+    project.repo.checkout(branch_name(BARK_RULES_REF), True)
 
     click.echo("Define what Bark Modules to add!\n")
     requirements = []
@@ -287,36 +267,42 @@ def add_modules_interactive(project: Project) -> None:
 
 
 def setup(project: Project) -> None:
-    curr_ref = cmd("git", "symbolic-ref", "HEAD")[0]
+    curr_ref = project.repo.current_ref
 
     if not has_valid_bark_rules(project):
         if curr_ref != BARK_RULES_REF:
             save_active_branch(project, curr_ref)
-            checkout_or_orphan(project, BARK_RULES_REF)
+            project.repo.checkout(branch_name(BARK_RULES_REF), True)
             curr_ref = BARK_RULES_REF
 
         add_modules_interactive(project)
         newline()
         add_commit_rules_interactive(project)
 
-        _confirm_commit(commit_message="Add initial modules and rules (made by bark).")
+        _confirm_commit(
+            project=project,
+            commit_message="Add initial modules and rules (made by bark).",
+        )
 
     active_ref = get_active_branch(project)
     if active_ref:  # checkout if we have an active branch
-        checkout_or_orphan(project, active_ref)
+        project.repo.checkout(branch_name(active_ref), True)
         curr_ref = active_ref
         remove_active_branch(project)
 
     if not get_commit_rules(project):
         add_commit_rules_interactive(project)
-        _confirm_commit(commit_message="Initial rules (made by bark).")
+        _confirm_commit(project=project, commit_message="Initial rules (made by bark).")
 
     if curr_ref != BARK_RULES_REF and not branch_in_bark_rules_yaml(project, curr_ref):
-        cmd("git", "checkout", branch_name(BARK_RULES_REF))
+        project.repo.checkout(branch_name(BARK_RULES_REF))
         add_branches_interactive(project, curr_ref)
-        _confirm_commit(f"Add {curr_ref} to bark_rules (made by bark).")
-        cmd(
-            "git", "checkout", branch_name(curr_ref)
+        _confirm_commit(
+            project=project,
+            commit_message=f"Add {curr_ref} to bark_rules (made by bark).",
+        )
+        project.repo.checkout(
+            branch_name(curr_ref)
         )  # run this if the commit was made in interactive mode
 
     click.echo("Bark is initialized!")

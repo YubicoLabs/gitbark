@@ -20,7 +20,6 @@ from gitbark.commands.setup import (
     add_branches_interactive,
     add_commit_rules_interactive,
     _confirm_commit,
-    checkout_or_orphan,
 )
 
 from gitbark.core import BARK_RULES_REF
@@ -72,6 +71,7 @@ def add_rules(ctx):
     project = ctx.obj["project"]
     add_commit_rules_interactive(project)
     _confirm_commit(
+        project=project,
         commit_message="Modify commit rules (made by bark).",
         manual_action=(
             "The 'commit_rules.yaml' file has been staged. "
@@ -86,15 +86,16 @@ def add_rules(ctx):
 def add_modules(ctx):
     """Add bark modules."""
     project = ctx.obj["project"]
-    curr_ref = cmd("git", "symbolic-ref", "HEAD")[0]
+    curr_ref = project.repo.current_ref
     add_modules_interactive(project)
     _confirm_commit(
+        project=project,
         commit_message="Modify bark modules (made by bark).",
         manual_action=(
             "The 'bark_rules.yaml' file has been staged. Please commit the changes!"
         ),
     )
-    checkout_or_orphan(project, curr_ref)
+    project.repo.checkout(branch_name(curr_ref), True)
     click.echo("Bark modules configuration was committed successfully!")
 
 
@@ -108,15 +109,16 @@ def protect(ctx):
     automatically.
     """
     project = ctx.obj["project"]
-    curr_ref = cmd("git", "symbolic-ref", "HEAD")[0]
+    curr_ref = project.repo.current_ref
     add_branches_interactive(project, curr_ref)
     _confirm_commit(
+        project=project,
         commit_message="Modify bark modules (made by bark).",
         manual_action=(
             "The 'bark_rules.yaml' file has been staged. " "Please commit the changes!"
         ),
     )
-    checkout_or_orphan(project, curr_ref)
+    project.repo.checkout(branch_name(curr_ref))
     click.echo("Bark modules configuration was committed successfully!")
 
 

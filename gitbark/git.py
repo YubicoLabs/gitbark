@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from .objects import RuleData
+from .util import cmd, branch_name
 
 from dataclasses import dataclass
 from pygit2 import Commit as _Commit, Tree, Repository as _Repository
@@ -156,11 +157,16 @@ class Repository:
     """Git repo wrapper class"""
 
     def __init__(self, path: str) -> None:
+        self._path = path
         self._object = _Repository(path)
 
     @property
     def head(self) -> Commit:
         return Commit(self._object.head.target.raw, self)
+
+    @property
+    def current_ref(self) -> str:
+        return self._object.references["HEAD"].target
 
     @property
     def references(self) -> dict[str, Commit]:
@@ -169,9 +175,27 @@ class Repository:
             for ref in self._object.references.iterator()
         }
 
+    def branch_exists(self, branch: str) -> bool:
+        return branch in self._object.branches
+
     def resolve(self, name: str) -> Tuple[Commit, Optional[str]]:
         commit, ref = self._object.resolve_refish(name)
         return Commit(commit.id.raw, self), (ref.name if ref else None)
+
+    def checkout(self, branch: str, orhpan: bool = False) -> None:
+        if branch_name(self.current_ref) == branch:
+            return
+        if not self.branch_exists(branch):
+            if orhpan:
+                cmd("git", "checkout", "--orphan", branch, cwd=self._path)
+                cmd("git", "reset", "--hard", cwd=self._path)
+            else:
+                cmd("git", "checkout", "-b", branch, cwd=self._path)
+        else:
+            cmd("git", "checkout", branch, cwd=self._path)
+
+    def commit(self, message: str = "Default msg", *options: str) -> None:
+        cmd("git", "commit", "-m", message, *options, cwd=self._path)
 
 
 @dataclass
