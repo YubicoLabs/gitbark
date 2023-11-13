@@ -12,17 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from gitbark.cli.__main__ import cli, _DefaultFormatter
-from gitbark.cli.util import CliFail
 from gitbark.objects import BranchRuleData, BarkRules
-from gitbark.core import BARK_RULES_REF
-from gitbark.util import branch_name
+from gitbark.core import BARK_RULES_BRANCH
+from gitbark.util import cmd
+from gitbark.git import Repository
 
-from .util import Environment, disable_bark
+from pytest_gitbark.util import (
+    write_bark_rules,
+    write_bark_file,
+    write_commit_rules,
+    dump,
+    restore_from_dump,
+    on_branch,
+    on_dir,
+    uninstall_hooks,
+)
 
-from click.testing import CliRunner
-
-import logging
 import pytest
 import os
 
@@ -34,111 +39,76 @@ def test_bark_module():
 
 
 @pytest.fixture(scope="session")
-def _env_clean_state(tmp_path_factory):
-    env_path = tmp_path_factory.mktemp("env")
-    dump_path = tmp_path_factory.mktemp("dump")
-    env = Environment(env_path)
-    env.dump(dump_path)
-    return env, dump_path
-
-
-@pytest.fixture(scope="session")
-def _env_initialized_state(
-    _env_clean_state: tuple[Environment, str], tmp_path_factory, test_bark_module
+def repo_initialized_dump(
+    repo_dump: tuple[Repository, str], tmp_path_factory, test_bark_module
 ):
-    env, _ = _env_clean_state
+    repo, _ = repo_dump
 
-    bootstrap_main = env.repo.commit("Initial commit.")
+    cmd("git", "commit", "-m", "Initial commit", "--allow-empty", cwd=repo._path)
+
+    bootstrap_main = repo.head
 
     branch_rule = BranchRuleData(
         pattern="main", bootstrap=bootstrap_main.hash.hex(), rules=[]
     )
     bark_rules = BarkRules(branches=[branch_rule])
-    env.repo.add_bark_rules(bark_rules, test_bark_module)
+    with on_branch(repo, BARK_RULES_BRANCH, True):
+        write_bark_rules(repo, bark_rules, test_bark_module)
+        cmd("git", "commit", "-m", "Add initial bark rules", cwd=repo._path)
 
     dump_path = tmp_path_factory.mktemp("dump")
-    env.dump(dump_path)
-    return env, dump_path
+    dump(repo, dump_path)
+    return repo, dump_path
 
 
 @pytest.fixture(scope="session")
-def _env_installed_state(
-    _env_initialized_state: tuple[Environment, str], tmp_path_factory, bark_cli
+def repo_installed_dump(
+    repo_initialized_dump: tuple[Repository, str], tmp_path_factory, bark_cli
 ):
-    env, _ = _env_initialized_state
+    repo, _ = repo_initialized_dump
 
-    cwd = os.getcwd()
-    os.chdir(env.repo.repo_dir)
-    bark_cli("install", input="y")
-    os.chdir(cwd)
+    with on_dir(repo._path):
+        bark_cli("install", input="y")
 
     dump_path = tmp_path_factory.mktemp("dump")
-    env.dump(dump_path)
-    return env, dump_path
+    dump(repo, dump_path)
+    return repo, dump_path
 
 
 @pytest.fixture(scope="session")
-def _env_bark_rules_invalid_state(
-    _env_installed_state: tuple[Environment, str], tmp_path_factory
+def repo_bark_rules_invalid_dump(
+    repo_installed_dump: tuple[Repository, str], tmp_path_factory
 ):
-    env, _ = _env_installed_state
+    repo, _ = repo_installed_dump
 
-    always_fail_rules = {"rules": [{"always_fail": None}]}
-    env.repo.add_commit_rules(
-        commit_rules=always_fail_rules, branch=branch_name(BARK_RULES_REF)
-    )
-
-    with disable_bark(env.repo) as repo:
-        repo.commit(branch=branch_name(BARK_RULES_REF))
+    always_fail_rule = {"rules": [{"always_fail": None}]}
+    with on_branch(repo, BARK_RULES_BRANCH, True):
+        write_commit_rules(repo, always_fail_rule)
+        cmd("git", "commit", "-m", "Invalid bark rules", cwd=repo._path)
+        with uninstall_hooks(repo):
+            cmd("git", "commit", "-m", "Invalid", "--allow-empty", cwd=repo._path)
 
     dump_path = tmp_path_factory.mktemp("dump")
-    env.dump(dump_path)
-    return env, dump_path
+    dump(repo, dump_path)
+    return repo, dump_path
 
 
 @pytest.fixture(scope="function")
-def env_clean(_env_clean_state: tuple[Environment, str]):
-    env, dump = _env_clean_state
-    env.restore_from_dump(dump)
-    return env
+def repo_initialized(repo_initialized_dump: tuple[Repository, str]):
+    repo, dump_path = repo_initialized_dump
+    restore_from_dump(repo, dump_path)
+    return repo
 
 
 @pytest.fixture(scope="function")
-def env_initialized(_env_initialized_state: tuple[Environment, str]):
-    env, dump = _env_initialized_state
-    env.restore_from_dump(dump)
-    return env
+def repo_installed(repo_installed_dump: tuple[Repository, str]):
+    repo, dump_path = repo_installed_dump
+    restore_from_dump(repo, dump_path)
+    return repo
 
 
 @pytest.fixture(scope="function")
-def env_installed(_env_installed_state: tuple[Environment, str]):
-    env, dump = _env_installed_state
-    env.restore_from_dump(dump)
-    return env
-
-
-@pytest.fixture(scope="function")
-def env_bark_rules_invalid(_env_bark_rules_invalid_state: tuple[Environment, str]):
-    env, dump = _env_bark_rules_invalid_state
-    env.restore_from_dump(dump)
-    return env
-
-
-@pytest.fixture(scope="session")
-def bark_cli():
-    return _bark_cli
-
-
-def _bark_cli(*argv, **kwargs):
-    handler = logging.StreamHandler()
-    handler.setLevel(logging.WARNING)
-    handler.setFormatter(_DefaultFormatter())
-    logging.getLogger().addHandler(handler)
-
-    runner = CliRunner(mix_stderr=True)
-    result = runner.invoke(cli, argv, obj={}, **kwargs)
-    if result.exit_code != 0:
-        if isinstance(result.exception, CliFail):
-            raise SystemExit()
-        raise result.exception
-    return result
+def repo_bark_rules_invalid(repo_bark_rules_invalid_dump: tuple[Repository, str]):
+    repo, dump_path = repo_bark_rules_invalid_dump
+    restore_from_dump(repo, dump_path)
+    return repo

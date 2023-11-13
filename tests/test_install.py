@@ -12,33 +12,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .util import Environment
+from gitbark.git import Repository
 
-
-import os
+from pytest_gitbark.util import on_dir
 import pytest
 
 
 class TestInstall:
-    def verify_install(self, env: Environment, bark_cli, passes: bool):
-        cwd = os.getcwd()
-        os.chdir(env.repo.repo_dir)
-        print(env.repo.repo_dir)
-
-        if not passes:
-            with pytest.raises(SystemExit):
+    def verify_install(self, repo: Repository, bark_cli, passes: bool):
+        with on_dir(repo._path):
+            if not passes:
+                with pytest.raises(SystemExit):
+                    bark_cli("install", input="y")
+            else:
                 bark_cli("install", input="y")
-        else:
-            bark_cli("install", input="y")
-        os.chdir(cwd)
 
-    def test_install_without_bark_rules(self, env_clean: Environment, bark_cli):
-        self.verify_install(env=env_clean, bark_cli=bark_cli, passes=False)
+    def test_install_without_bark_rules(self, repo: Repository, bark_cli):
+        self.verify_install(repo=repo, bark_cli=bark_cli, passes=False)
 
     def test_install_with_invalid_bark_rules(
-        self, env_bark_rules_invalid: Environment, bark_cli
+        self, repo_bark_rules_invalid: Repository, bark_cli
     ):
-        self.verify_install(env=env_bark_rules_invalid, bark_cli=bark_cli, passes=False)
+        self.verify_install(
+            repo=repo_bark_rules_invalid, bark_cli=bark_cli, passes=False
+        )
 
-    def test_install_with_initialized(self, env_initialized: Environment, bark_cli):
-        self.verify_install(env=env_initialized, bark_cli=bark_cli, passes=True)
+    def test_install_with_initialized(self, repo_initialized: Repository, bark_cli):
+        self.verify_install(repo=repo_initialized, bark_cli=bark_cli, passes=True)
