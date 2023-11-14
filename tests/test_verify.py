@@ -12,110 +12,83 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .util import (
-    Environment,
-    Repo,
-)
+from gitbark.util import cmd
+from gitbark.git import Repository
 
-from typing import Optional, Callable
+from pytest_gitbark.util import verify_rules, write_commit_rules
 
+from typing import Callable
 import pytest
 
 
-class TestVerify:
-    def verify_rules(
-        self,
-        env: Environment,
-        passes: bool,
-        action: Callable[[Repo], None],
-        commit_rules: Optional[dict] = None,
-        bark_rules: Optional[dict] = None,
-    ):
-        if commit_rules:
-            env.repo.add_commit_rules(commit_rules)
-
-        if bark_rules:
-            env.repo.add_bark_rules(bark_rules)
-
-        self.verify_action(env, passes, action)
-
-    def verify_action(
-        self, env: Environment, passes: bool, action: Callable[[Repo], None]
-    ) -> None:
-        curr_head = env.repo.head
-
-        if passes:
-            action(env.repo)
-        else:
-            with pytest.raises(Exception):
-                action(env.repo)
-
-        post_head = env.repo.head
-
-        if passes:
-            assert curr_head != post_head
-        else:
-            assert curr_head == post_head
-
-    @pytest.mark.parametrize(
-        "rules",
-        [
-            {"cr_rules": {"rules": [{"always_pass": None}]}, "passes": True},
-            {"cr_rules": {"rules": [{"always_fail": None}]}, "passes": False},
-            {
-                "cr_rules": {
-                    "rules": [{"any": [{"always_pass": None}, {"always_fail": None}]}]
-                },
-                "passes": True,
+@pytest.mark.parametrize(
+    "rules",
+    [
+        {"cr_rules": {"rules": [{"always_pass": None}]}, "passes": True},
+        {"cr_rules": {"rules": [{"always_fail": None}]}, "passes": False},
+        {
+            "cr_rules": {
+                "rules": [{"any": [{"always_pass": None}, {"always_fail": None}]}]
             },
-            {
-                "cr_rules": {
-                    "rules": [{"any": [{"always_fail": None}, {"always_fail": None}]}]
-                },
-                "passes": False,
+            "passes": True,
+        },
+        {
+            "cr_rules": {
+                "rules": [{"any": [{"always_fail": None}, {"always_fail": None}]}]
             },
-            {
-                "cr_rules": {
-                    "rules": [
-                        {"always_pass": None},
-                        {"any": [{"always_pass": None}, {"always_fail": None}]},
-                    ]
-                },
-                "passes": True,
-            },
-        ],
-    )
-    def test_commit_rule_validation(self, env_installed: Environment, rules):
-        action: Callable[[Repo], None] = lambda repo: repo.commit()
-        self.verify_rules(
-            env=env_installed,
-            passes=rules["passes"],
-            action=action,
-            commit_rules=rules["cr_rules"],
-        )
-
-    @pytest.mark.parametrize(
-        "rules",
-        [
-            {"ruless": None},
-            {"rules": {"always_fail": None}},
-            {"always_fail": None},
-            {"rules": [{"not_exists_rule": None}]},
-            {
+            "passes": False,
+        },
+        {
+            "cr_rules": {
                 "rules": [
-                    {
-                        "any": [
-                            {"always_fail": None},
-                        ]
-                    }
+                    {"always_pass": None},
+                    {"any": [{"always_pass": None}, {"always_fail": None}]},
                 ]
             },
-        ],
+            "passes": True,
+        },
+    ],
+)
+def test_commit_rule_validation(repo_installed: Repository, rules):
+    action: Callable[[Repository], None] = lambda repo: cmd(
+        "git", "commit", "-m", "Test action", "--allow-empty", cwd=repo._path
     )
-    def test_add_broken_commit_rules(self, env_installed: Environment, rules):
-        action: Callable[[Repo], None] = lambda repo: repo.add_commit_rules(rules)
-        self.verify_rules(env=env_installed, passes=False, action=action)
+    verify_rules(
+        repo=repo_installed,
+        passes=rules["passes"],
+        action=action,
+        commit_rules=rules["cr_rules"],
+    )
 
-    def test_commit_with_invalid_bark_rules(self, env_bark_rules_invalid: Environment):
-        action: Callable[[Repo], None] = lambda repo: repo.commit()
-        self.verify_rules(env=env_bark_rules_invalid, passes=False, action=action)
+
+@pytest.mark.parametrize(
+    "rules",
+    [
+        {"ruless": None},
+        {"rules": {"always_fail": None}},
+        {"always_fail": None},
+        {"rules": [{"not_exists_rule": None}]},
+        {
+            "rules": [
+                {
+                    "any": [
+                        {"always_fail": None},
+                    ]
+                }
+            ]
+        },
+    ],
+)
+def test_add_broken_commit_rules(repo_installed: Repository, rules):
+    def action(repo: Repository):
+        write_commit_rules(repo, rules)
+        cmd("git", "commit", "-m", "Broken rule", cwd=repo._path)
+
+    verify_rules(repo=repo_installed, passes=False, action=action)
+
+
+def test_commit_with_invalid_bark_rules(repo_bark_rules_invalid: Repository):
+    action: Callable[[Repository], None] = lambda repo: cmd(
+        "git", "commit", "-m", "Invalid", "--allow-empty", cwd=repo._path
+    )
+    verify_rules(repo=repo_bark_rules_invalid, passes=False, action=action)

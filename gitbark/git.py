@@ -177,6 +177,7 @@ class Repository:
 
     def __init__(self, path: str) -> None:
         self._object = _Repository(path)
+        self._path = path
 
     @property
     def head(self) -> Commit:

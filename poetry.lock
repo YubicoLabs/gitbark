@@ -248,6 +248,24 @@ tomli = {version = ">=1.0.0", markers = "python_version < \"3.11\""}
 testing = ["argcomplete", "hypothesis (>=3.56)", "mock", "nose", "pygments (>=2.7.2)", "requests", "xmlschema"]
 
 [[package]]
+name = "pytest-gitbark"
+version = "0.0.1"
+description = ""
+optional = false
+python-versions = "*"
+files = []
+develop = false
+
+[package.extras]
+dev = ["gitbark @ git+https://github.com/YubicoLabs/gitbark.git", "pytest"]
+
+[package.source]
+type = "git"
+url = "https://github.com/YubicoLabs/pytest-gitbark.git"
+reference = "HEAD"
+resolved_reference = "b85d22c0ecedad10a54c3c8e3f0046e3bc4e1a4e"
+
+[[package]]
 name = "pyyaml"
 version = "6.0"
 description = "YAML parser and emitter for Python"
@@ -310,4 +328,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.9"
-content-hash = "3bdbb1aedb695994ca73e0645d4ad775686cad5db3939f462b742ba6cafd2397"
+content-hash = "b9d303e70dc9cf60ad9e7b2d0bd82401c9f60d16f300c06b66875fe4449b6dd6"
