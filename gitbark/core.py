@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .util import cmd, BRANCH_REF_PREFIX
-from .git import Commit, BARK_CONFIG
+from .util import BRANCH_REF_PREFIX
+from .git import Commit, BARK_CONFIG, is_descendant
 from .project import Cache, Project
 from .rule import RuleViolation, CommitRule, AllCommitRule, BranchRule
 from .objects import BranchRuleData, BarkRules, RuleData
@@ -26,9 +26,9 @@ BARK_RULES = f"{BARK_CONFIG}/bark_rules.yaml"
 BARK_REQUIREMENTS = f"{BARK_CONFIG}/requirements.txt"
 
 
-def get_commit_rule(commit: Commit, project: Project) -> CommitRule:
+def get_commit_rule(commit: Commit, project: Project, cache: Cache) -> CommitRule:
     rule_data = commit.get_commit_rules()
-    return CommitRule.load_rule(rule_data, commit, project.cache, project.repo)
+    return CommitRule.load_rule(rule_data, commit, cache, project.repo)
 
 
 def nearest_valid_ancestors(commit: Commit, cache: Cache) -> set[Commit]:
@@ -43,8 +43,8 @@ def nearest_valid_ancestors(commit: Commit, cache: Cache) -> set[Commit]:
     return valid_ancestors
 
 
-def validate_rules(commit: Commit, project: Project) -> None:
-    validators = nearest_valid_ancestors(commit, project.cache)
+def validate_rules(commit: Commit, project: Project, cache: Cache) -> None:
+    validators = nearest_valid_ancestors(commit, cache)
     if not validators:
         raise RuleViolation("No valid ancestors")
 
@@ -52,34 +52,19 @@ def validate_rules(commit: Commit, project: Project) -> None:
         rule: CommitRule = AllCommitRule(
             "all",
             commit,
-            project.cache,
+            cache,
             project.repo,
-            [get_commit_rule(v, project) for v in validators],
+            [get_commit_rule(v, project, cache) for v in validators],
         )
     else:
-        rule = get_commit_rule(validators.pop(), project)
+        rule = get_commit_rule(validators.pop(), project, cache)
     rule.validate(commit)
 
     # Also ensure that commit has valid rules
     try:
-        get_commit_rule(commit, project)
+        get_commit_rule(commit, project, cache)
     except Exception as e:
         raise RuleViolation(f"invalid commit rules: {e}")
-
-
-def is_descendant(prev: Commit, new: Commit) -> bool:
-    """Checks that the current tip is a descendant of the old tip"""
-
-    _, exit_status = cmd(
-        "git",
-        "merge-base",
-        "--is-ancestor",
-        prev.hash.hex(),
-        new.hash.hex(),
-        check=False,
-    )
-
-    return exit_status == 0
 
 
 def validate_commit(
@@ -91,7 +76,7 @@ def validate_commit(
     if not is_descendant(bootstrap, commit):
         raise RuleViolation(f"Bootstrap '{bootstrap.hash.hex()}' is not an ancestor")
 
-    cache = project.cache
+    cache = project.get_cache(bootstrap)
 
     # Re-validate if previously invalid
     if cache.get(commit) is False:
@@ -112,7 +97,7 @@ def validate_commit(
                     to_validate.extend(parents)
                 else:
                     try:
-                        validate_rules(c, project)
+                        validate_rules(c, project, cache)
                         on_valid(c)
                         cache.set(c, True)
                     except RuleViolation as e:
@@ -131,7 +116,9 @@ def validate_branch_rules(
     """Validated HEAD of branch according to branch rules"""
     validator = project.repo.references[BARK_RULES_REF]
     rule_data = RuleData.parse_list(branch_rule.rules)
-    rule = BranchRule.load_rule(rule_data, validator, project.cache, project.repo)
+    bootstrap = Commit(bytes.fromhex(branch_rule.bootstrap), project.repo)
+    cache = project.get_cache(bootstrap)
+    rule = BranchRule.load_rule(rule_data, validator, cache, project.repo)
     rule.validate(head, ref)
 
 

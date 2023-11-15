@@ -13,23 +13,27 @@
 # limitations under the License.
 
 from .util import cmd
-from .git import Commit, Repository
+from .git import Commit, Repository, is_descendant
 from .cache import Cache
 
 from typing import Optional
 from enum import Enum
 import os
 import sys
+import re
 
 
 class PROJECT_FILES(str, Enum):
     BOOTSTRAP = "bootstrap"
     DB = "db.db"
+    CACHE = "cache"
 
 
 BARK_DIRECTORY = "bark"
 ENV_DIRECTORY = "env"
 BARK_MODULES_DIRECTORY = "bark_modules"
+
+CACHE_NAME_PATTERN = re.compile(r"([0-9a-f]{40})\.db")
 
 
 class Project:
@@ -37,6 +41,7 @@ class Project:
         self.path = path
         self.bark_directory = os.path.join(self.path, ".git", BARK_DIRECTORY)
         self.env_path = os.path.join(self.bark_directory, ENV_DIRECTORY)
+        self.cache_directory = os.path.join(self.bark_directory, PROJECT_FILES.CACHE)
 
         if not os.path.exists(self.bark_directory):
             os.makedirs(self.bark_directory, exist_ok=True)
@@ -44,12 +49,33 @@ class Project:
         if not os.path.exists(self.env_path):
             self.create_env()
 
+        if not os.path.exists(self.cache_directory):
+            os.makedirs(self.cache_directory, exist_ok=True)
+
         sys.path.append(self.get_env_site_packages())
 
-        db_path = os.path.join(self.bark_directory, PROJECT_FILES.DB)
-        self.cache = Cache(db_path)
         self.repo = Repository(self.path)
+        self._caches: dict[Commit, Cache] = {}
+        self._load_caches()
         self.bootstrap = self._load_bootstrap()
+
+    def _load_caches(self):
+        for fname in os.listdir(self.cache_directory):
+            m = CACHE_NAME_PATTERN.match(fname)
+            if m:
+                key = Commit(bytes.fromhex(m.group(1)), self.repo)
+                self._caches[key] = Cache(os.path.join(self.cache_directory, fname))
+
+    def get_cache(self, bootstrap: Commit) -> Cache:
+        if bootstrap in self._caches:
+            return self._caches[bootstrap]
+        for bs, cache in self._caches.items():
+            if is_descendant(bs, bootstrap) and cache.get(bootstrap):
+                return cache
+
+        cache = Cache(os.path.join(self.cache_directory, f"{bootstrap.hash.hex()}.db"))
+        self._caches[bootstrap] = cache
+        return cache
 
     @staticmethod
     def exists(path: str) -> bool:
@@ -112,4 +138,5 @@ class Project:
 
     def update(self) -> None:
         self._save_bootstrap()
-        self.cache.close()
+        for cache in self._caches.values():
+            cache.close()
