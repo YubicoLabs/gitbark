@@ -69,6 +69,7 @@ class Project:
     def get_cache(self, bootstrap: Commit) -> Cache:
         if bootstrap in self._caches:
             return self._caches[bootstrap]
+
         for bs, cache in self._caches.items():
             if is_descendant(bs, bootstrap) and cache.get(bootstrap):
                 return cache

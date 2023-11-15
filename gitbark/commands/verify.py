@@ -39,7 +39,8 @@ def verify_bark_rules(project: Project):
         requirements = commit.read_file(BARK_REQUIREMENTS)
         project.install_modules(requirements)
 
-    validate_commit_rules(project, head, bootstrap, on_valid)
+    cache = project.get_cache(bootstrap)
+    validate_commit_rules(cache, head, bootstrap, on_valid)
 
 
 def verify(
@@ -56,8 +57,9 @@ def verify(
     """
 
     if bootstrap and head:
+        cache = project.get_cache(bootstrap)
         validate_commit_rules(
-            project=project,
+            cache=cache,
             head=head,
             bootstrap=bootstrap,
         )
@@ -110,6 +112,6 @@ def verify_branch(
 
     for rule in bark_rules.get_branch_rules(ref):
         bootstrap = Commit(bytes.fromhex(rule.bootstrap), project.repo)
-        if bootstrap != head:
-            validate_commit_rules(project, head, bootstrap)
-            validate_branch_rules(project, head, ref, rule)
+        cache = project.get_cache(bootstrap)
+        validate_commit_rules(cache, head, bootstrap)
+        validate_branch_rules(cache, head, ref, rule)
