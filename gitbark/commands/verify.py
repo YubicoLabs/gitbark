@@ -19,7 +19,7 @@ from ..core import (
     BARK_RULES_REF,
     BARK_REQUIREMENTS,
 )
-from ..objects import BarkRules
+from ..objects import BarkRules, BranchRuleData
 from ..git import Commit
 from ..rule import RuleViolation
 from ..project import Project
@@ -73,12 +73,12 @@ def verify(
             verify_all(project, bark_rules)
         elif ref and head:
             # Verify target branch
-            # TODO: raise some error if no branch_rule matches the branch
+            rules = bark_rules.get_branch_rules(ref)
             verify_branch(
                 project=project,
                 ref=ref,
                 head=head,
-                bark_rules=bark_rules,
+                rules=rules,
             )
 
 
@@ -88,15 +88,17 @@ def verify_all(project: Project, bark_rules: BarkRules):
     for branch in project.repo.branches:
         head, ref = project.repo.resolve(branch)
         assert ref
-        try:
-            verify_branch(
-                project=project,
-                ref=ref,
-                head=head,
-                bark_rules=bark_rules,
-            )
-        except RuleViolation as e:
-            violations.append(e)
+        rules = bark_rules.get_branch_rules(ref)
+        if rules:
+            try:
+                verify_branch(
+                    project=project,
+                    ref=ref,
+                    head=head,
+                    rules=rules,
+                )
+            except RuleViolation as e:
+                violations.append(e)
 
     if violations:
         raise RuleViolation("Not all branches were valid", violations)
@@ -106,11 +108,13 @@ def verify_branch(
     project: Project,
     ref: str,
     head: Commit,
-    bark_rules: BarkRules,
+    rules: list[BranchRuleData],
 ) -> None:
     """Verify branch against branch rules and commit rules."""
 
-    for rule in bark_rules.get_branch_rules(ref):
+    if not rules:
+        raise RuleViolation(f"No rules defined for {ref}")
+    for rule in rules:
         bootstrap = Commit(bytes.fromhex(rule.bootstrap), project.repo)
         cache = project.get_cache(bootstrap)
         validate_commit_rules(cache, head, bootstrap)
