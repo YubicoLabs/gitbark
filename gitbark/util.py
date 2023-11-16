@@ -19,17 +19,10 @@ from typing import Any
 BRANCH_REF_PREFIX = "refs/heads/"
 
 
-def cmd(*cmd: str, check: bool = True, **kwargs: Any):
-    try:
-        result = subprocess.run(
-            cmd, capture_output=True, text=True, check=True, **kwargs
-        )
-        return result.stdout.strip(), result.returncode
-    except subprocess.CalledProcessError as e:
-        if check:
-            raise e
-        else:
-            return e.stdout, e.returncode
+def cmd(*cmd: str, check: bool = True, text: bool = True, **kwargs: Any):
+
+    result = subprocess.run(cmd, capture_output=True, text=text, check=check, **kwargs)
+    return result.stdout.strip(), result.returncode
 
 
 def branch_name(ref: str) -> str:
