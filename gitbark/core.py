@@ -16,7 +16,7 @@ from .util import BRANCH_REF_PREFIX
 from .git import Commit, BARK_CONFIG, is_descendant
 from .project import Cache, Project
 from .rule import RuleViolation, CommitRule, AllCommitRule, BranchRule
-from .objects import BranchRuleData, BarkRules, RuleData
+from .objects import BarkRules, RuleData
 from typing import Callable, Optional
 import yaml
 
@@ -108,11 +108,10 @@ def _validate_commit(
 
 
 def validate_branch_rules(
-    cache: Cache, head: Commit, ref: str, branch_rule: BranchRuleData
+    cache: Cache, head: Commit, ref: str, rule_data: RuleData
 ) -> None:
     """Validated HEAD of branch according to branch rules"""
     validator = head.repo.references[BARK_RULES_REF]
-    rule_data = RuleData.parse_list(branch_rule.rules)
     rule = BranchRule.load_rule(rule_data, validator, cache)
     rule.validate(head, ref)
 
@@ -145,12 +144,12 @@ def get_bark_rules(project: Project, commit: Optional[Commit] = None) -> BarkRul
 
     commit = commit or get_bark_rules_commit(project)
     if not commit:
-        return BarkRules([])
+        return BarkRules([], [])
 
     try:
         bark_rules_blob = commit.read_file(BARK_RULES)
     except FileNotFoundError:
-        return BarkRules([])
+        return BarkRules([], [])
 
     bark_rules_object = yaml.safe_load(bark_rules_blob)
     return BarkRules.parse(bark_rules_object)

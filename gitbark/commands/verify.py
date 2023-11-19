@@ -19,7 +19,7 @@ from ..core import (
     BARK_RULES_REF,
     BARK_REQUIREMENTS,
 )
-from ..objects import BarkRules, BranchRuleData
+from ..objects import BarkRules, RefRuleData
 from ..git import Commit
 from ..rule import RuleViolation
 from ..project import Project
@@ -41,6 +41,10 @@ def verify_bark_rules(project: Project):
 
     cache = project.get_cache(bootstrap)
     validate_commit_rules(cache, head, bootstrap, on_valid)
+
+    bark_rules = get_bark_rules(project)
+    rule_data = bark_rules.get_bark_rules(bootstrap.hash).rule_data
+    validate_branch_rules(cache, head, BARK_RULES_REF, rule_data)
 
 
 def verify(
@@ -64,8 +68,6 @@ def verify(
             bootstrap=bootstrap,
         )
     else:
-        verify_bark_rules(project)
-
         bark_rules = get_bark_rules(project)
 
         if all:
@@ -73,8 +75,14 @@ def verify(
             verify_all(project, bark_rules)
         elif ref and head:
             # Verify target branch
-            rules = bark_rules.get_branch_rules(ref)
-            verify_branch(
+            if ref == BARK_RULES_REF and project.bootstrap:
+                # Validate bark_rules branch
+                rules = [bark_rules.get_bark_rules(project.bootstrap.hash)]
+            else:
+                verify_bark_rules(project)
+                rules = bark_rules.get_ref_rules(ref)
+
+            verify_ref(
                 project=project,
                 ref=ref,
                 head=head,
@@ -84,18 +92,19 @@ def verify(
 
 def verify_all(project: Project, bark_rules: BarkRules):
     """Verify all branches matching branch_rules."""
+    verify_bark_rules(project)
+
     violations = []
-    for branch in project.repo.branches:
-        head, ref = project.repo.resolve(branch)
-        assert ref
-        rules = bark_rules.get_branch_rules(ref)
-        if rules:
+    rules = bark_rules.get_ref_rules()
+    for ref, head in project.repo.references.items():
+        matching_rules = [r for r in rules if r.pattern.match(ref)]
+        if matching_rules:
             try:
-                verify_branch(
+                verify_ref(
                     project=project,
                     ref=ref,
                     head=head,
-                    rules=rules,
+                    rules=matching_rules,
                 )
             except RuleViolation as e:
                 violations.append(e)
@@ -104,18 +113,18 @@ def verify_all(project: Project, bark_rules: BarkRules):
         raise RuleViolation("Not all branches were valid", violations)
 
 
-def verify_branch(
+def verify_ref(
     project: Project,
     ref: str,
     head: Commit,
-    rules: list[BranchRuleData],
+    rules: list[RefRuleData],
 ) -> None:
     """Verify branch against branch rules and commit rules."""
 
     if not rules:
         raise RuleViolation(f"No rules defined for {ref}")
     for rule in rules:
-        bootstrap = Commit(bytes.fromhex(rule.bootstrap), project.repo)
+        bootstrap = Commit(rule.bootstrap, project.repo)
         cache = project.get_cache(bootstrap)
         validate_commit_rules(cache, head, bootstrap)
-        validate_branch_rules(cache, head, ref, rule)
+        validate_branch_rules(cache, head, ref, rule.rule_data)

@@ -19,7 +19,7 @@ from ..core import (
     BARK_RULES_BRANCH,
     BARK_REQUIREMENTS,
 )
-from ..objects import BarkRules, BranchRuleData, RuleData
+from ..objects import BarkRules, RuleData
 from ..git import Commit, COMMIT_RULES, BARK_CONFIG
 from ..project import Project
 from ..util import cmd, BRANCH_REF_PREFIX
@@ -138,9 +138,8 @@ def has_valid_bark_rules(project: Project) -> bool:
 
 def branch_in_bark_rules_yaml(project: Project, branch: str) -> bool:
     try:
-        return bool(
-            get_bark_rules(project).get_branch_rules(f"{BRANCH_REF_PREFIX}{branch}")
-        )
+        ref = f"{BRANCH_REF_PREFIX}{branch}"
+        return bool(get_bark_rules(project).get_ref_rules(ref))
     except ValueError:
         raise CliFail("'bark_modules.yaml' configuration is invalid!")
 
@@ -246,8 +245,19 @@ def add_branches_interactive(project: Project, branch: str) -> None:
         )
 
     rules = add_branch_rules_interactive(branch)
-    branch_rule = BranchRuleData(pattern=branch, bootstrap=bootstrap, rules=rules)
-    bark_rules.branches.append(branch_rule)
+
+    # TODO: Re-use existing bootstrap entries
+    bark_rules.project.append(
+        {
+            "bootstrap": bootstrap,
+            "refs": [
+                {
+                    "pattern": f"refs/heads/{branch}",
+                    "rules": rules,
+                }
+            ],
+        }
+    )
 
     _confirm_bark_rules(bark_rules)
 

@@ -12,9 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .util import branch_name
 from dataclasses import dataclass
-from typing import Union, Any
+from typing import Union, Any, Optional
 import re
 
 
@@ -54,50 +53,69 @@ class RuleData:
 
 
 @dataclass
-class BranchRuleData:
+class RefRules:
     pattern: str
-    bootstrap: str
     rules: list
 
     @classmethod
-    def parse(cls, branch_rule: dict) -> "BranchRuleData":
-        try:
-            pattern = branch_rule["pattern"]
-            bootstrap = branch_rule["bootstrap"]
-            rules = branch_rule.get("rules", [])
-        except Exception:
-            raise
-            raise ValueError("Cannot parse branch rule!")
-
+    def parse(cls, data: dict) -> "RefRules":
         return cls(
-            pattern=pattern,
-            bootstrap=bootstrap,
-            rules=rules,
+            pattern=data["pattern"],
+            rules=data.get("rules", []),
         )
 
+
+@dataclass
+class BootstrapEntry:
+    bootstrap: str
+    refs: list[RefRules]
+
     @classmethod
-    def get_default(cls, pattern: str, bootstrap: bytes) -> "BranchRuleData":
-        return cls(pattern=pattern, bootstrap=bootstrap.hex(), rules=[])
+    def parse(cls, data: dict) -> "BootstrapEntry":
+        return cls(
+            bootstrap=data["bootstrap"],
+            refs=[RefRules.parse(d) for d in data.get("refs", [])],
+        )
+
+
+@dataclass
+class RefRuleData:
+    bootstrap: bytes
+    pattern: re.Pattern
+    rule_data: RuleData
 
 
 @dataclass
 class BarkRules:
-    branches: list[BranchRuleData]
+    bark_rules: list
+    project: list
+
+    def __post_init__(self):
+        # Make sure data parses correctly
+        self.get_bark_rules(b"")
+        self.get_ref_rules()
 
     @classmethod
     def parse(cls, bark_rules: dict) -> "BarkRules":
-        try:
-            branches = [BranchRuleData.parse(rule) for rule in bark_rules["branches"]]
-        except Exception:
-            raise ValueError("Cannot parse bark_modules.yaml!")
+        return cls(bark_rules.get("bark_rules", []), bark_rules.get("project", []))
 
-        return cls(branches=branches)
+    def get_bark_rules(self, bootstrap: bytes) -> RefRuleData:
+        return RefRuleData(
+            bootstrap,
+            re.compile(r"refs/heads/bark_rules"),
+            RuleData.parse_list(self.bark_rules or []),
+        )
 
-    def get_branch_rules(self, ref: str) -> list[BranchRuleData]:
-        branch = branch_name(ref)
-        rules = []
-        for data in self.branches:
-            pattern = re.compile(data.pattern)
-            if pattern.match(branch):
-                rules.append(data)
+    def get_ref_rules(self, ref: Optional[str] = None) -> list[RefRuleData]:
+        rules = [
+            RefRuleData(
+                bytes.fromhex(e["bootstrap"]),
+                re.compile(r["pattern"]),
+                RuleData.parse_list(r.get("rules", [])),
+            )
+            for e in self.project or []
+            for r in e["refs"]
+        ]
+        if ref:
+            return [r for r in rules if r.pattern.match(ref)]
         return rules
