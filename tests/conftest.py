@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from gitbark.objects import BranchRuleData, BarkRules
+from gitbark.objects import BarkRules
 from gitbark.core import BARK_RULES_BRANCH
 from gitbark.util import cmd
 from gitbark.git import Repository
@@ -48,10 +48,11 @@ def repo_initialized_dump(
 
     bootstrap_main = repo.head
 
-    branch_rule = BranchRuleData(
-        pattern="main", bootstrap=bootstrap_main.hash.hex(), rules=[]
-    )
-    bark_rules = BarkRules(branches=[branch_rule])
+    branch_rule = {
+        "bootstrap": bootstrap_main.hash.hex(),
+        "refs": [{"pattern": "refs/heads/main"}],
+    }
+    bark_rules = BarkRules([], project=[branch_rule])
     with on_branch(repo, BARK_RULES_BRANCH, True):
         write_bark_rules(repo, bark_rules, test_bark_module)
         cmd("git", "commit", "-m", "Add initial bark rules", cwd=repo._path)

@@ -221,3 +221,18 @@ class ReferenceUpdate:
     old_ref: str
     new_ref: str
     ref_name: str
+
+
+def is_descendant(prev: Commit, new: Commit) -> bool:
+    """Checks that the current tip is a descendant of the old tip"""
+
+    _, exit_status = cmd(
+        "git",
+        "merge-base",
+        "--is-ancestor",
+        prev.hash.hex(),
+        new.hash.hex(),
+        check=False,
+    )
+
+    return exit_status == 0

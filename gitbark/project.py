@@ -13,67 +13,27 @@
 # limitations under the License.
 
 from .util import cmd
-from .git import Commit, Repository
+from .git import Commit, Repository, is_descendant
+from .cache import Cache
 
-from typing import Generator, Optional
+from typing import Optional
 from enum import Enum
 import os
-import sqlite3
-import contextlib
 import sys
-
-
-@contextlib.contextmanager
-def connect_db(db_path: str) -> Generator[sqlite3.Connection, None, None]:
-    db_path = db_path
-    with contextlib.closing(sqlite3.connect(db_path)) as db:
-        with db:
-            yield db
-
-
-class Cache:
-    def __init__(self, db_path: str) -> None:
-        self._db = sqlite3.connect(db_path)
-
-    def get(self, commit: Commit) -> Optional[bool]:
-        entry = self._db.execute(
-            "SELECT valid FROM cache_entries WHERE commit_hash = ? ",
-            [commit.hash.hex()],
-        ).fetchone()
-        return bool(entry[0]) if entry else None
-
-    def has(self, commit: Commit) -> bool:
-        res = self._db.execute(
-            "SELECT EXISTS(SELECT 1 FROM cache_entries WHERE commit_hash = ?)",
-            [commit.hash.hex()],
-        ).fetchone()
-        return bool(res[0])
-
-    def set(self, commit: Commit, valid: bool) -> None:
-        self._db.execute(
-            "INSERT INTO cache_entries (commit_hash, valid) " "VALUES (?, ?)",
-            [commit.hash.hex(), int(valid)],
-        )
-
-    def remove(self, commit: Commit) -> None:
-        self._db.execute(
-            "DELETE FROM cache_entries WHERE commit_hash = ? ",
-            [commit.hash.hex()],
-        )
-
-    def close(self) -> None:
-        self._db.commit()
-        self._db.close()
+import re
 
 
 class PROJECT_FILES(str, Enum):
     BOOTSTRAP = "bootstrap"
     DB = "db.db"
+    CACHE = "cache"
 
 
 BARK_DIRECTORY = "bark"
 ENV_DIRECTORY = "env"
 BARK_MODULES_DIRECTORY = "bark_modules"
+
+CACHE_NAME_PATTERN = re.compile(r"([0-9a-f]{40})\.db")
 
 
 class Project:
@@ -81,7 +41,7 @@ class Project:
         self.path = path
         self.bark_directory = os.path.join(self.path, ".git", BARK_DIRECTORY)
         self.env_path = os.path.join(self.bark_directory, ENV_DIRECTORY)
-        self.db_path = os.path.join(self.bark_directory, PROJECT_FILES.DB)
+        self.cache_directory = os.path.join(self.bark_directory, PROJECT_FILES.CACHE)
 
         if not os.path.exists(self.bark_directory):
             os.makedirs(self.bark_directory, exist_ok=True)
@@ -89,31 +49,39 @@ class Project:
         if not os.path.exists(self.env_path):
             self.create_env()
 
+        if not os.path.exists(self.cache_directory):
+            os.makedirs(self.cache_directory, exist_ok=True)
+
         sys.path.append(self.get_env_site_packages())
 
-        if not os.path.exists(self.db_path):
-            self.create_db()
-
-        self.cache = Cache(self.db_path)
         self.repo = Repository(self.path)
+        self._caches: dict[Commit, Cache] = {}
+        self._load_caches()
         self.bootstrap = self._load_bootstrap()
+
+    def _load_caches(self):
+        for fname in os.listdir(self.cache_directory):
+            m = CACHE_NAME_PATTERN.match(fname)
+            if m:
+                key = Commit(bytes.fromhex(m.group(1)), self.repo)
+                self._caches[key] = Cache(os.path.join(self.cache_directory, fname))
+
+    def get_cache(self, bootstrap: Commit) -> Cache:
+        if bootstrap in self._caches:
+            return self._caches[bootstrap]
+
+        for bs, cache in self._caches.items():
+            if is_descendant(bs, bootstrap) and cache.get(bootstrap):
+                return cache
+
+        cache = Cache(os.path.join(self.cache_directory, f"{bootstrap.hash.hex()}.db"))
+        self._caches[bootstrap] = cache
+        return cache
 
     @staticmethod
     def exists(path: str) -> bool:
         bark_directory = os.path.join(path, ".git", BARK_DIRECTORY)
         return os.path.exists(bark_directory)
-
-    def create_db(self) -> None:
-        with connect_db(self.db_path) as db:
-            db.executescript(
-                """
-                CREATE TABLE cache_entries (
-                    commit_hash TEXT NOT NULL,
-                    valid INTEGER NOT NULL,
-                    PRIMARY KEY (commit_hash) ON CONFLICT IGNORE
-                );
-                """
-            )
 
     def create_env(self) -> None:
         # Create venv
@@ -171,4 +139,5 @@ class Project:
 
     def update(self) -> None:
         self._save_bootstrap()
-        self.cache.close()
+        for cache in self._caches.values():
+            cache.close()

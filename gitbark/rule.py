@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .git import Commit, Repository
+from .git import Commit
 from .objects import RuleData
 from .project import Cache
 
@@ -34,17 +34,15 @@ class _Rule(ABC):
 
     def __init__(
         self,
-        name: str,  # TODO: remove
+        name: str,  # TODO: remove?
         commit: Commit,
         cache: Cache,
-        repo: Repository,
         args: Any,
     ) -> None:
         self.name = name
         self.validator = commit
+        self.repo = commit.repo
         self.cache = cache
-        self.repo = repo
-        self.violations: list[str] = []
         self._parse_args(args)
 
     def _parse_args(self, args: Any) -> None:
@@ -52,9 +50,7 @@ class _Rule(ABC):
 
     @staticmethod
     @abstractmethod
-    def load_rule(
-        rule: RuleData, commit: Commit, cache: Cache, repo: Repository
-    ) -> "_Rule":
+    def load_rule(rule: RuleData, commit: Commit, cache: Cache) -> "_Rule":
         pass
 
 
@@ -64,11 +60,9 @@ class CommitRule(_Rule):
         raise RuleViolation(f"{self}.validate is not defined")
 
     @staticmethod
-    def load_rule(
-        rule: RuleData, commit: Commit, cache: Cache, repo: Repository
-    ) -> "CommitRule":
+    def load_rule(rule: RuleData, commit: Commit, cache: Cache) -> "CommitRule":
         rule_cls = entry_points(group="bark_commit_rules")[rule.id].load()
-        return rule_cls(rule.id, commit, cache, repo, rule.args)
+        return rule_cls(rule.id, commit, cache, rule.args)
 
 
 class BranchRule(_Rule):
@@ -77,11 +71,9 @@ class BranchRule(_Rule):
         raise RuleViolation(f"{self}.validate is not defined")
 
     @staticmethod
-    def load_rule(
-        rule: RuleData, commit: Commit, cache: Cache, repo: Repository
-    ) -> "BranchRule":
+    def load_rule(rule: RuleData, commit: Commit, cache: Cache) -> "BranchRule":
         rule_cls = entry_points(group="bark_branch_rules")[rule.id].load()
-        return rule_cls(rule.id, commit, cache, repo, rule.args)
+        return rule_cls(rule.id, commit, cache, rule.args)
 
 
 class _CompositeRule(_Rule):
@@ -94,7 +86,6 @@ class _CompositeRule(_Rule):
                     RuleData.parse(data),
                     self.validator,
                     self.cache,
-                    self.repo,
                 )
                 for data in args
             ]
