@@ -12,7 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from gitbark.commands.verify import verify as verify_cmd
+from gitbark.commands.verify import (
+    verify_all,
+    verify_ref,
+    verify_commit,
+    verify_ref_update,
+)
 from gitbark.commands.install import is_installed, install as install_cmd
 from gitbark.commands.setup import (
     setup as setup_cmd,
@@ -27,7 +32,7 @@ from gitbark.core import BARK_RULES_BRANCH
 from gitbark.project import Project
 from gitbark.rule import RuleViolation
 from gitbark.util import cmd, branch_name
-from gitbark.git import Commit, ReferenceUpdate
+from gitbark.git import Commit
 from .util import (
     BarkContextObject,
     click_callback,
@@ -167,10 +172,33 @@ def click_parse_bootstrap(ctx, param, val):
     return None
 
 
-@click_callback()
-def click_parse_ref_update(ctx, param, val):
-    old_ref, new_ref, ref_name = val
-    return ReferenceUpdate(old_ref, new_ref, ref_name)
+@cli.command(hidden=True)
+@click.pass_context
+@click.argument("old")
+@click.argument("new")
+@click.argument("ref")
+def ref_update(ctx, old, new, ref):
+    """Verify ref update"""
+    project = ctx.obj["project"]
+
+    if ref not in project.repo.references:
+        return
+
+    head = Commit(bytes.fromhex(new), project.repo)
+
+    fail_head = os.path.join(project.bark_directory, "FAIL_HEAD")
+    try:
+        verify_ref_update(project, ref, head)
+        if os.path.exists(fail_head):
+            os.remove(fail_head)
+    except RuleViolation as e:
+        with open(fail_head, "w") as f:
+            f.write(head.hash.hex())
+        # TODO: Error message here?
+        pp_violation(e)
+        sys.exit(1)
+    finally:
+        project.update()
 
 
 @cli.command()
@@ -191,14 +219,7 @@ def click_parse_ref_update(ctx, param, val):
     help="Verify from bootstrap",
     callback=click_parse_bootstrap,
 )
-@click.option(
-    "-r",
-    "--ref-update",
-    type=(str, str, str),
-    hidden=True,
-    callback=click_parse_ref_update,
-)
-def verify(ctx, target, all, bootstrap, ref_update):
+def verify(ctx, target, all, bootstrap):
     """
     Verify repository or branch.
 
@@ -210,34 +231,23 @@ def verify(ctx, target, all, bootstrap, ref_update):
     if not is_installed(project):
         raise CliFail("Bark is not installed! Run 'bark install' first!")
 
-    if ref_update:
-        if ref_update.ref_name not in project.repo.references:
-            return
-        ref = ref_update.ref_name
-        head = Commit(bytes.fromhex(ref_update.new_ref), project.repo)
-    else:
-        head, ref = project.repo.resolve(target)
-        if not ref and not bootstrap:
-            raise CliFail(
-                "verifying a single commit requires specifying a bootstrap with -b"
-            )
-
-    fail_head = os.path.join(project.bark_directory, "FAIL_HEAD")
     try:
-        verify_cmd(project, ref, head, bootstrap, all)
         if all:
+            verify_all(project)
             click.echo("Repository is in valid state!")
-        elif not ref_update:
+        else:
+            head, ref = project.repo.resolve(target)
             if ref:
+                verify_ref(project, ref, head)
                 click.echo(f"Branch {branch_name(ref)} is in a valid state!")
+            elif not bootstrap:
+                raise CliFail(
+                    "verifying a single commit requires specifying a bootstrap with -b"
+                )
             else:
+                verify_commit(project, head, bootstrap)
                 click.echo(f"Commit {head.hash.hex()} is in a valid state!")
-        if os.path.exists(fail_head):
-            os.remove(fail_head)
     except RuleViolation as e:
-        if ref_update:
-            with open(fail_head, "w") as f:
-                f.write(head.hash.hex())
         # TODO: Error message here?
         pp_violation(e)
         sys.exit(1)

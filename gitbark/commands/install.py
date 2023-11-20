@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .verify import verify
+from .verify import verify_all
 from ..project import Project
 from ..util import cmd
 from ..core import BARK_RULES_REF
@@ -27,7 +27,7 @@ def install(project: Project) -> None:
     Installs GitBark
     """
     # Verify the branch rules branch
-    verify(project, all=True)
+    verify_all(project)
 
     # If everything goes well, install hooks
     if not hooks_installed(project):

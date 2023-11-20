@@ -15,7 +15,6 @@
 from .objects import RuleData
 from .util import cmd, BRANCH_REF_PREFIX
 
-from dataclasses import dataclass
 from pygit2 import Commit as _Commit, Tree, Repository as _Repository
 from typing import Union, Tuple, Optional
 import yaml
@@ -209,18 +208,6 @@ class Repository:
         return Commit(commit.id.raw, self), (
             ref.name if ref and ref.name.startswith("refs/") else None
         )
-
-
-@dataclass
-class ReferenceUpdate:
-    """Git reference update class
-
-    This class serves as a wrapper for a Git reference-update
-    """
-
-    old_ref: str
-    new_ref: str
-    ref_name: str
 
 
 def is_descendant(prev: Commit, new: Commit) -> bool:
