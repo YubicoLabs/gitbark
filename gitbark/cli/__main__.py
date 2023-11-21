@@ -18,7 +18,7 @@ from gitbark.commands.verify import (
     verify_commit,
     verify_ref_update,
 )
-from gitbark.commands.install import is_installed, install as install_cmd
+from gitbark.commands.install import install as install_cmd
 from gitbark.commands.setup import (
     setup as setup_cmd,
     add_modules_interactive,
@@ -28,7 +28,7 @@ from gitbark.commands.setup import (
     checkout_or_orphan,
 )
 
-from gitbark.core import BARK_RULES_BRANCH
+from gitbark.core import BARK_RULES_REF
 from gitbark.project import Project
 from gitbark.rule import RuleViolation
 from gitbark.util import cmd, branch_name
@@ -48,6 +48,27 @@ import sys
 import os
 
 logger = logging.getLogger(__name__)
+
+
+def ensure_bootstrap_verified(project: Project) -> None:
+    root_hash = cmd("git", "rev-list", "--max-parents=0", BARK_RULES_REF)[0]
+    root = Commit(bytes.fromhex(root_hash), project.repo)
+    if project.bootstrap:
+        if project.bootstrap != root:
+            raise CliFail(
+                "WARNING! The previously trusted bootstrap commit has CHANGED!"
+            )
+    else:
+        click.echo(
+            f"The bootstrap commit ({root_hash}) of the branch_rules "
+            "branch has not been verified!"
+        )
+        click.confirm(
+            "Do you want to trust this commit as the bootstrap commit?",
+            abort=True,
+            err=True,
+        )
+        project.bootstrap = root
 
 
 @click.group()
@@ -137,22 +158,10 @@ def install(ctx):
     project = ctx.obj["project"]
 
     repo = project.repo
-    if BARK_RULES_BRANCH not in repo.branches:
+    if BARK_RULES_REF not in repo.references:
         raise CliFail('The "bark_rules" branch has not been created!')
 
-    root_commit_hash = cmd("git", "rev-list", "--max-parents=0", BARK_RULES_BRANCH)[0]
-    root_commit = Commit(bytes.fromhex(root_commit_hash), repo)
-    if root_commit != project.bootstrap:
-        click.echo(
-            f"The bootstrap commit ({root_commit.hash.hex()}) of the branch_rules "
-            "branch has not been verified!"
-        )
-        click.confirm(
-            "Do you want to trust this commit as the bootstrap commit?",
-            abort=True,
-            err=True,
-        )
-        project.bootstrap = root_commit
+    ensure_bootstrap_verified(project)
 
     try:
         install_cmd(project)
@@ -232,8 +241,7 @@ def verify(ctx, target, all, bootstrap):
     """
 
     project = ctx.obj["project"]
-    if not is_installed(project):
-        raise CliFail("Bark is not installed! Run 'bark install' first!")
+    ensure_bootstrap_verified(project)
 
     try:
         if all:
