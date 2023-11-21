@@ -70,6 +70,8 @@ class Commit:
         if not isinstance(hash, bytes):
             raise ValueError(f"Commit hash is not bytes {hash}")
         self._object: _Commit = repo._object.get(hash.hex())
+        if not isinstance(self._object, _Commit):
+            raise ValueError(f"No commit found with hash {hash.hex()}")
 
     @property
     def hash(self) -> bytes:

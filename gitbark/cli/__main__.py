@@ -181,11 +181,15 @@ def ref_update(ctx, old, new, ref):
     """Verify ref update"""
     project = ctx.obj["project"]
 
-    if ref not in project.repo.references:
+    if old == new or ref not in project.repo.references:
+        # Not a change of a "real" ref
+        return
+
+    if new == "00" * 20:
+        # Ref deletion
         return
 
     head = Commit(bytes.fromhex(new), project.repo)
-
     fail_head = os.path.join(project.bark_directory, "FAIL_HEAD")
     try:
         verify_ref_update(project, ref, head)

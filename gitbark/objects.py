@@ -30,6 +30,7 @@ class RuleData:
 
         try:
             # Rule has args
+            data = dict(data)  # Copy so not to mutate original data
             rule_id, args = (k := next(iter(data)), data.pop(k))
             if data:  # More keys, only valid if arg is None
                 if args is None:
