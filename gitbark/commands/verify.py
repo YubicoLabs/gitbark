@@ -66,7 +66,7 @@ def verify_ref(
 ) -> None:
     """Verifies a ref.
 
-    The head should be
+    The head should be the current target of the ref.
     Uses bark_rules to find matching (commit and ref) rules for the given ref.
     """
     if ref == BARK_RULES_REF and project.bootstrap:

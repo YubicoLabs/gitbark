@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .verify import verify_all
 from ..project import Project
 
 import pkg_resources
@@ -24,10 +23,6 @@ def install(project: Project) -> None:
     """
     Installs GitBark
     """
-    # Verify the branch rules branch
-    verify_all(project)
-
-    # If everything goes well, install hooks
     if not hooks_installed(project):
         install_hooks(project)
 
