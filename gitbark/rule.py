@@ -65,14 +65,14 @@ class CommitRule(_Rule):
         return rule_cls(rule.id, commit, cache, rule.args)
 
 
-class BranchRule(_Rule):
+class RefRule(_Rule):
     @abstractmethod
-    def validate(self, commit: Commit, branch: str) -> None:
+    def validate(self, commit: Commit, ref: str) -> None:
         raise RuleViolation(f"{self}.validate is not defined")
 
     @staticmethod
-    def load_rule(rule: RuleData, commit: Commit, cache: Cache) -> "BranchRule":
-        rule_cls = entry_points(group="bark_branch_rules")[rule.id].load()
+    def load_rule(rule: RuleData, commit: Commit, cache: Cache) -> "RefRule":
+        rule_cls = entry_points(group="bark_ref_rules")[rule.id].load()
         return rule_cls(rule.id, commit, cache, rule.args)
 
 
@@ -93,9 +93,9 @@ class _CompositeRule(_Rule):
                 raise ValueError("Composite rule must contain at least 2 child rules!")
 
     def _validate_children(
-        self, commit: Commit, branch: Optional[str]
+        self, commit: Commit, ref: Optional[str]
     ) -> list[RuleViolation]:
-        args = (commit, branch) if branch is not None else (commit,)
+        args = (commit, ref) if ref is not None else (commit,)
         violations = []
         for rule in self.sub_rules:
             try:
@@ -106,8 +106,8 @@ class _CompositeRule(_Rule):
 
 
 class _AllRule(_CompositeRule):
-    def validate(self, commit: Commit, branch: Optional[str] = None):
-        violations = self._validate_children(commit, branch)
+    def validate(self, commit: Commit, ref: Optional[str] = None):
+        violations = self._validate_children(commit, ref)
         if violations:
             if len(violations) == 1:
                 raise violations[0]
@@ -120,13 +120,13 @@ class AllCommitRule(_AllRule, CommitRule):
     pass
 
 
-class AllBranchRule(_AllRule, BranchRule):
+class AllRefRule(_AllRule, RefRule):
     pass
 
 
 class _AnyRule(_CompositeRule):
-    def validate(self, commit: Commit, branch: Optional[str] = None):
-        violations = self._validate_children(commit, branch)
+    def validate(self, commit: Commit, ref: Optional[str] = None):
+        violations = self._validate_children(commit, ref)
         if len(self.sub_rules) - len(violations) <= 0:
             raise RuleViolation(
                 "One of the following conditions must be met:", violations
@@ -137,7 +137,7 @@ class AnyCommitRule(_AnyRule, CommitRule):
     pass
 
 
-class AnyBranchRule(_AnyRule, BranchRule):
+class AnyRefRule(_AnyRule, RefRule):
     pass
 
 
@@ -146,6 +146,6 @@ class NoneCommitRule(CommitRule):
         pass
 
 
-class NoneBranchRule(BranchRule):
-    def validate(self, commit: Commit, branch: Optional[str] = None):
+class NoneRefRule(RefRule):
+    def validate(self, commit: Commit, ref: Optional[str] = None):
         pass

@@ -23,10 +23,10 @@ all = "gitbark.rule:AllCommitRule"
 any = "gitbark.rule:AnyCommitRule"
 none = "gitbark.rule:NoneCommitRule"
 
-[tool.poetry.plugins."bark_branch_rules"]
-all = "gitbark.rule:AllBranchRule"
-any = "gitbark.rule:AnyBranchRule"
-none = "gitbark.rule:NoneBranchRule"
+[tool.poetry.plugins."bark_ref_rules"]
+all = "gitbark.rule:AllRefRule"
+any = "gitbark.rule:AnyRefRule"
+none = "gitbark.rule:NoneRefRule"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.2.2"

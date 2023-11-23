@@ -20,9 +20,9 @@ from ..core import (
     BARK_REQUIREMENTS,
 )
 from ..objects import BarkRules, RuleData
-from ..git import Commit, COMMIT_RULES, BARK_CONFIG
+from ..git import Commit, COMMIT_RULES, BARK_CONFIG, BRANCH_REF_PREFIX
 from ..project import Project
-from ..util import cmd, BRANCH_REF_PREFIX
+from ..util import cmd
 
 from ..cli.util import click_prompt, CliFail
 
@@ -195,10 +195,11 @@ def add_rules_interactive(ep_group: str, rules: list) -> None:
             break
 
         rule_id, rule = choices.pop(int(choice))
-        click.echo(f"Configure the {rule_id} rule!")
+        click.echo(f"Adding rule: {rule_id}")
         newline()
 
         rules.append(rule.setup())
+        click.echo(f"Successfully added rule: {rule_id}")
 
 
 def add_commit_rules_interactive(project: Project) -> None:

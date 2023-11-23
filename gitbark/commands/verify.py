@@ -14,7 +14,7 @@
 
 from ..core import (
     validate_commit_rules,
-    validate_branch_rules,
+    validate_ref_rules,
     get_bark_rules,
     BARK_RULES_REF,
     BARK_REQUIREMENTS,
@@ -42,7 +42,7 @@ def verify_bark_rules(project: Project) -> BarkRules:
 
     bark_rules = get_bark_rules(project)
     rule_data = bark_rules.get_bark_rules(bootstrap.hash).rule_data
-    validate_branch_rules(cache, head, BARK_RULES_REF, rule_data)
+    validate_ref_rules(cache, head, BARK_RULES_REF, rule_data)
     return bark_rules
 
 
@@ -88,7 +88,7 @@ def verify_ref(
 
 
 def verify_all(project: Project):
-    """Verify all branches matching branch_rules."""
+    """Verify all branches with matching ref rules."""
     bark_rules = verify_bark_rules(project)
 
     violations = []
@@ -105,7 +105,7 @@ def verify_all(project: Project):
             violations.append(e)
 
     if violations:
-        raise RuleViolation("Not all branches were valid", violations)
+        raise RuleViolation("Not all refs were valid", violations)
 
 
 def verify_ref_update(project: Project, ref: str, head: Commit):
@@ -128,4 +128,4 @@ def _do_verify_ref(
         bootstrap = Commit(rule.bootstrap, project.repo)
         cache = project.get_cache(bootstrap)
         validate_commit_rules(cache, head, bootstrap)
-        validate_branch_rules(cache, head, ref, rule.rule_data)
+        validate_ref_rules(cache, head, ref, rule.rule_data)

@@ -31,8 +31,8 @@ from gitbark.commands.setup import (
 from gitbark.core import BARK_RULES_REF
 from gitbark.project import Project
 from gitbark.rule import RuleViolation
-from gitbark.util import cmd, branch_name
-from gitbark.git import Commit
+from gitbark.util import cmd
+from gitbark.git import Commit, BRANCH_REF_PREFIX, TAG_REF_PREFIX
 from .util import (
     BarkContextObject,
     click_callback,
@@ -60,15 +60,23 @@ def ensure_bootstrap_verified(project: Project) -> None:
             )
     else:
         click.echo(
-            f"The bootstrap commit ({root_hash}) of the branch_rules "
+            f"The bootstrap commit ({root_hash}) of the bark_rules "
             "branch has not been verified!"
         )
         click.confirm(
-            "Do you want to trust this commit as the bootstrap commit?",
+            "Do you want to trust this commit as the bootstrap for bark?",
             abort=True,
             err=True,
         )
         project.bootstrap = root
+
+
+def format_ref(ref: str) -> str:
+    if ref.startswith(BRANCH_REF_PREFIX):
+        return f"branch {ref[len(BRANCH_REF_PREFIX) :]}"
+    if ref.startswith(TAG_REF_PREFIX):
+        return f"tag {ref[len(TAG_REF_PREFIX) :]}"
+    return ref
 
 
 @click.group()
@@ -223,7 +231,7 @@ def ref_update(ctx, old, new, ref):
     is_flag=True,
     show_default=True,
     default=False,
-    help="Verify all branches.",
+    help="Verify all refs.",
 )
 @click.option(
     "-b",
@@ -234,10 +242,10 @@ def ref_update(ctx, old, new, ref):
 )
 def verify(ctx, target, all, bootstrap):
     """
-    Verify repository or branch.
+    Verify repository or ref.
 
     \b
-    TARGET the commit or branch to verify.
+    TARGET the commit or ref to verify.
     """
 
     project = ctx.obj["project"]
@@ -251,7 +259,7 @@ def verify(ctx, target, all, bootstrap):
             head, ref = project.repo.resolve(target)
             if ref:
                 verify_ref(project, ref, head)
-                click.echo(f"Branch {branch_name(ref)} is in a valid state!")
+                click.echo(f"{format_ref(ref)} is in a valid state!")
             elif not bootstrap:
                 raise CliFail(
                     "verifying a single commit requires specifying a bootstrap with -b"

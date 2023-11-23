@@ -13,13 +13,15 @@
 # limitations under the License.
 
 from .objects import RuleData
-from .util import cmd, BRANCH_REF_PREFIX
+from .util import cmd
 
 from pygit2 import Commit as _Commit, Tree, Repository as _Repository
 from typing import Union, Tuple, Optional
 import yaml
 import re
 
+BRANCH_REF_PREFIX = "refs/heads/"
+TAG_REF_PREFIX = "refs/tags/"
 BARK_CONFIG = ".bark"
 COMMIT_RULES = f"{BARK_CONFIG}/commit_rules.yaml"
 
