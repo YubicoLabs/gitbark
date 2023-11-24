@@ -12,8 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from gitbark.commands.verify import verify as verify_cmd
-from gitbark.commands.install import is_installed, install as install_cmd
+from gitbark.commands.verify import (
+    verify_all,
+    verify_ref,
+    verify_commit,
+    verify_ref_update,
+)
+from gitbark.commands.install import install as install_cmd
 from gitbark.commands.setup import (
     setup as setup_cmd,
     add_modules_interactive,
@@ -23,11 +28,11 @@ from gitbark.commands.setup import (
     checkout_or_orphan,
 )
 
-from gitbark.core import BARK_RULES_BRANCH
+from gitbark.core import BARK_RULES_REF
 from gitbark.project import Project
 from gitbark.rule import RuleViolation
-from gitbark.util import cmd, branch_name
-from gitbark.git import Commit, ReferenceUpdate
+from gitbark.util import cmd
+from gitbark.git import Commit, BRANCH_REF_PREFIX, TAG_REF_PREFIX
 from .util import (
     BarkContextObject,
     click_callback,
@@ -43,6 +48,35 @@ import sys
 import os
 
 logger = logging.getLogger(__name__)
+
+
+def ensure_bootstrap_verified(project: Project) -> None:
+    root_hash = cmd("git", "rev-list", "--max-parents=0", BARK_RULES_REF)[0]
+    root = Commit(bytes.fromhex(root_hash), project.repo)
+    if project.bootstrap:
+        if project.bootstrap != root:
+            raise CliFail(
+                "WARNING! The previously trusted bootstrap commit has CHANGED!"
+            )
+    else:
+        click.echo(
+            f"The bootstrap commit ({root_hash}) of the bark_rules "
+            "branch has not been verified!"
+        )
+        click.confirm(
+            "Do you want to trust this commit as the bootstrap for bark?",
+            abort=True,
+            err=True,
+        )
+        project.bootstrap = root
+
+
+def format_ref(ref: str) -> str:
+    if ref.startswith(BRANCH_REF_PREFIX):
+        return f"branch {ref[len(BRANCH_REF_PREFIX) :]}"
+    if ref.startswith(TAG_REF_PREFIX):
+        return f"tag {ref[len(TAG_REF_PREFIX) :]}"
+    return ref
 
 
 @click.group()
@@ -132,22 +166,10 @@ def install(ctx):
     project = ctx.obj["project"]
 
     repo = project.repo
-    if BARK_RULES_BRANCH not in repo.branches:
+    if BARK_RULES_REF not in repo.references:
         raise CliFail('The "bark_rules" branch has not been created!')
 
-    root_commit_hash = cmd("git", "rev-list", "--max-parents=0", BARK_RULES_BRANCH)[0]
-    root_commit = Commit(bytes.fromhex(root_commit_hash), repo)
-    if root_commit != project.bootstrap:
-        click.echo(
-            f"The bootstrap commit ({root_commit.hash.hex()}) of the branch_rules "
-            "branch has not been verified!"
-        )
-        click.confirm(
-            "Do you want to trust this commit as the bootstrap commit?",
-            abort=True,
-            err=True,
-        )
-        project.bootstrap = root_commit
+    ensure_bootstrap_verified(project)
 
     try:
         install_cmd(project)
@@ -167,10 +189,37 @@ def click_parse_bootstrap(ctx, param, val):
     return None
 
 
-@click_callback()
-def click_parse_ref_update(ctx, param, val):
-    old_ref, new_ref, ref_name = val
-    return ReferenceUpdate(old_ref, new_ref, ref_name)
+@cli.command(hidden=True)
+@click.pass_context
+@click.argument("old")
+@click.argument("new")
+@click.argument("ref")
+def ref_update(ctx, old, new, ref):
+    """Verify ref update"""
+    project = ctx.obj["project"]
+
+    if old == new or ref not in project.repo.references:
+        # Not a change of a "real" ref
+        return
+
+    if new == "00" * 20:
+        # Ref deletion
+        return
+
+    head = Commit(bytes.fromhex(new), project.repo)
+    fail_head = os.path.join(project.bark_directory, "FAIL_HEAD")
+    try:
+        verify_ref_update(project, ref, head)
+        if os.path.exists(fail_head):
+            os.remove(fail_head)
+    except RuleViolation as e:
+        with open(fail_head, "w") as f:
+            f.write(head.hash.hex())
+        # TODO: Error message here?
+        pp_violation(e)
+        sys.exit(1)
+    finally:
+        project.update()
 
 
 @cli.command()
@@ -182,7 +231,7 @@ def click_parse_ref_update(ctx, param, val):
     is_flag=True,
     show_default=True,
     default=False,
-    help="Verify all branches.",
+    help="Verify all refs.",
 )
 @click.option(
     "-b",
@@ -191,53 +240,34 @@ def click_parse_ref_update(ctx, param, val):
     help="Verify from bootstrap",
     callback=click_parse_bootstrap,
 )
-@click.option(
-    "-r",
-    "--ref-update",
-    type=(str, str, str),
-    hidden=True,
-    callback=click_parse_ref_update,
-)
-def verify(ctx, target, all, bootstrap, ref_update):
+def verify(ctx, target, all, bootstrap):
     """
-    Verify repository or branch.
+    Verify repository or ref.
 
     \b
-    TARGET the commit or branch to verify.
+    TARGET the commit or ref to verify.
     """
 
     project = ctx.obj["project"]
-    if not is_installed(project):
-        raise CliFail("Bark is not installed! Run 'bark install' first!")
+    ensure_bootstrap_verified(project)
 
-    if ref_update:
-        if ref_update.ref_name not in project.repo.references:
-            return
-        ref = ref_update.ref_name
-        head = Commit(bytes.fromhex(ref_update.new_ref), project.repo)
-    else:
-        head, ref = project.repo.resolve(target)
-        if not ref and not bootstrap:
-            raise CliFail(
-                "verifying a single commit requires specifying a bootstrap with -b"
-            )
-
-    fail_head = os.path.join(project.bark_directory, "FAIL_HEAD")
     try:
-        verify_cmd(project, ref, head, bootstrap, all)
         if all:
+            verify_all(project)
             click.echo("Repository is in valid state!")
-        elif not ref_update:
+        else:
+            head, ref = project.repo.resolve(target)
             if ref:
-                click.echo(f"Branch {branch_name(ref)} is in a valid state!")
+                verify_ref(project, ref, head)
+                click.echo(f"{format_ref(ref)} is in a valid state!")
+            elif not bootstrap:
+                raise CliFail(
+                    "verifying a single commit requires specifying a bootstrap with -b"
+                )
             else:
+                verify_commit(project, head, bootstrap)
                 click.echo(f"Commit {head.hash.hex()} is in a valid state!")
-        if os.path.exists(fail_head):
-            os.remove(fail_head)
     except RuleViolation as e:
-        if ref_update:
-            with open(fail_head, "w") as f:
-                f.write(head.hash.hex())
         # TODO: Error message here?
         pp_violation(e)
         sys.exit(1)

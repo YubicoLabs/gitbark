@@ -14,7 +14,7 @@ if [ "$1" == "prepared" ]; then
   done
 
   if ! [ "$ref_update" == "" ]; then
-    bark verify -r $ref_update
+    bark ref-update $ref_update
     exit_status=$(echo $?)
     if [ $exit_status -ne 0 ]; then
       exit 1

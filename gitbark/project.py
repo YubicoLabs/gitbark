@@ -25,7 +25,6 @@ import re
 
 class PROJECT_FILES(str, Enum):
     BOOTSTRAP = "bootstrap"
-    DB = "db.db"
     CACHE = "cache"
 
 

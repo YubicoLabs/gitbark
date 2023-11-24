@@ -20,9 +20,9 @@ from ..core import (
     BARK_REQUIREMENTS,
 )
 from ..objects import BarkRules, RuleData
-from ..git import Commit, COMMIT_RULES, BARK_CONFIG
+from ..git import Commit, COMMIT_RULES, BARK_CONFIG, BRANCH_REF_PREFIX
 from ..project import Project
-from ..util import cmd, BRANCH_REF_PREFIX
+from ..util import cmd
 
 from ..cli.util import click_prompt, CliFail
 
@@ -173,7 +173,7 @@ def add_rules_interactive(ep_group: str, rules: list) -> None:
     if not choices:
         raise CliFail("No configurable rules. Provide configuration manually.")
 
-    while True:
+    while choices:
         newline()
         click.echo("Choose rule (leave blank to skip):")
         max_length_rule_name = max(len(name) for (name, _) in choices.values())
@@ -194,11 +194,12 @@ def add_rules_interactive(ep_group: str, rules: list) -> None:
         if not choice:
             break
 
-        rule_id, rule = choices[int(choice)]
-        click.echo(f"Configure the {rule_id} rule!")
+        rule_id, rule = choices.pop(int(choice))
+        click.echo(f"Adding rule: {rule_id}")
         newline()
 
         rules.append(rule.setup())
+        click.echo(f"Successfully added rule: {rule_id}")
 
 
 def add_commit_rules_interactive(project: Project) -> None:
@@ -309,6 +310,17 @@ def setup(project: Project) -> None:
         add_modules_interactive(project)
         newline()
         add_commit_rules_interactive(project)
+
+        rules = add_branch_rules_interactive(BARK_RULES_BRANCH)
+        bark_rules = get_bark_rules(project)
+        bark_rules.bark_rules = rules
+        _confirm_bark_rules(bark_rules)
+
+        dump_and_stage(
+            project=project,
+            file=f"{project.path}/{BARK_RULES}",
+            content=yaml.safe_dump(asdict(bark_rules), sort_keys=False),
+        )
 
         _confirm_commit(commit_message="Add initial modules and rules (made by bark).")
 

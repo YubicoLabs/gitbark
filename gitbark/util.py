@@ -16,16 +16,7 @@ import subprocess
 from typing import Any
 
 
-BRANCH_REF_PREFIX = "refs/heads/"
-
-
 def cmd(*cmd: str, check: bool = True, text: bool = True, **kwargs: Any):
 
     result = subprocess.run(cmd, capture_output=True, text=text, check=check, **kwargs)
     return result.stdout.strip(), result.returncode
-
-
-def branch_name(ref: str) -> str:
-    if ref.startswith(BRANCH_REF_PREFIX):
-        return ref[len(BRANCH_REF_PREFIX) :]
-    raise ValueError(f"Ref does not describe a branch: '{ref}'")

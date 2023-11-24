@@ -12,10 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .verify import verify
 from ..project import Project
-from ..util import cmd
-from ..core import BARK_RULES_REF
 
 import pkg_resources
 import os
@@ -26,27 +23,8 @@ def install(project: Project) -> None:
     """
     Installs GitBark
     """
-    # Verify the branch rules branch
-    verify(project, all=True)
-
-    # If everything goes well, install hooks
     if not hooks_installed(project):
         install_hooks(project)
-
-
-def bootstrap_verified(project: Project) -> bool:
-    bootstrap = project.bootstrap
-    if bootstrap:
-        try:
-            root_commit = cmd("git", "rev-list", "--max-parents=0", BARK_RULES_REF)[0]
-            return root_commit == bootstrap.hash.hex()
-        except Exception:
-            pass  # Fall through
-    return False
-
-
-def is_installed(project: Project) -> bool:
-    return bootstrap_verified(project) and hooks_installed(project)
 
 
 def install_hooks(project: Project):

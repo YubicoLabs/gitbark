@@ -48,11 +48,11 @@ def repo_initialized_dump(
 
     bootstrap_main = repo.head
 
-    branch_rule = {
+    ref_rule = {
         "bootstrap": bootstrap_main.hash.hex(),
         "refs": [{"pattern": "refs/heads/main"}],
     }
-    bark_rules = BarkRules([], project=[branch_rule])
+    bark_rules = BarkRules([], project=[ref_rule])
     with on_branch(repo, BARK_RULES_BRANCH, True):
         write_bark_rules(repo, bark_rules, test_bark_module)
         cmd("git", "commit", "-m", "Add initial bark rules", cwd=repo._path)

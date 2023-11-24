@@ -12,10 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .util import BRANCH_REF_PREFIX
-from .git import Commit, BARK_CONFIG, is_descendant
+from .git import Commit, BARK_CONFIG, is_descendant, BRANCH_REF_PREFIX
 from .project import Cache, Project
-from .rule import RuleViolation, CommitRule, AllCommitRule, BranchRule
+from .rule import RuleViolation, CommitRule, AllCommitRule, RefRule
 from .objects import BarkRules, RuleData
 from typing import Callable, Optional
 import yaml
@@ -107,12 +106,12 @@ def _validate_commit(
         raise violation
 
 
-def validate_branch_rules(
+def validate_ref_rules(
     cache: Cache, head: Commit, ref: str, rule_data: RuleData
 ) -> None:
-    """Validated HEAD of branch according to branch rules"""
+    """Validated HEAD of ref according to ref rules"""
     validator = head.repo.references[BARK_RULES_REF]
-    rule = BranchRule.load_rule(rule_data, validator, cache)
+    rule = RefRule.load_rule(rule_data, validator, cache)
     rule.validate(head, ref)
 
 
@@ -122,7 +121,7 @@ def validate_commit_rules(
     bootstrap: Commit,
     on_valid: Callable[[Commit], None] = lambda commit: None,
 ) -> None:
-    """Validates commit rules on branch"""
+    """Validates commit rules for a given commit"""
     if head == bootstrap:
         on_valid(bootstrap)
         return
@@ -140,7 +139,7 @@ def get_bark_rules_commit(project: Project) -> Optional[Commit]:
 
 
 def get_bark_rules(project: Project, commit: Optional[Commit] = None) -> BarkRules:
-    """Returns the latest branch_rules"""
+    """Returns the latest bark_rules"""
 
     commit = commit or get_bark_rules_commit(project)
     if not commit:
