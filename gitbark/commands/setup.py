@@ -221,7 +221,7 @@ def add_commit_rules_interactive(project: Project) -> None:
 def add_branch_rules_interactive(branch: str) -> list:
     click.echo(f"Specify Branch Rules for the '{branch}' branch!")
     branch_rules: list = []
-    add_rules_interactive("bark_branch_rules", branch_rules)
+    add_rules_interactive("bark_ref_rules", branch_rules)
     return branch_rules
 
 
