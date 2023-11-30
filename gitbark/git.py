@@ -95,7 +95,13 @@ class Commit:
 
     def _get_info(self) -> str:
         return cmd(
-            "git", "log", "-n1", "--pretty=oneline", "--decorate=full", self.hash.hex()
+            "git",
+            "log",
+            "-n1",
+            "--pretty=oneline",
+            "--decorate=full",
+            "--abbrev-commit",
+            self.hash.hex(),
         )[0]
 
     @property
