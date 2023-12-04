@@ -107,13 +107,7 @@ class Commit:
     @property
     def references(self) -> list[str]:
         """The list of refs pointing to the commit."""
-        info = self._get_info()
-        info = info[info.index("(") + 1 : info.index(")")]
-        parts = info.split(", ")
-        refs = parts[1:]
-        if parts[0].startswith("HEAD -> "):
-            refs.insert(0, parts[0].split()[-1])
-        return refs
+        return [ref for ref, c in self.repo.references.items() if c == self]
 
     @property
     def signature(self) -> tuple[bytes, bytes]:
