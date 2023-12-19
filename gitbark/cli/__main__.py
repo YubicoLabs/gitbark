@@ -33,10 +33,12 @@ from gitbark.project import Project
 from gitbark.rule import RuleViolation
 from gitbark.util import cmd
 from gitbark.git import Commit, BRANCH_REF_PREFIX, TAG_REF_PREFIX
+from gitbark.logging import init_logging, LOG_LEVEL
 from .util import (
     BarkContextObject,
     click_callback,
     CliFail,
+    EnumChoice,
     pp_violation,
     get_root,
     _add_subcommands,
@@ -81,8 +83,27 @@ def format_ref(ref: str) -> str:
 
 @click.group()
 @click.pass_context
-def cli(ctx):
+@click.option(
+    "-l",
+    "--log-level",
+    default=None,
+    type=EnumChoice(LOG_LEVEL, hidden=[LOG_LEVEL.NOTSET]),
+    help="enable logging at given verbosity level",
+)
+@click.option(
+    "--log-file",
+    default=None,
+    type=str,
+    metavar="FILE",
+    help="write log to FILE instead of printing to stderr (requires --log-level)",
+)
+def cli(ctx, log_level, log_file):
     ctx.obj = BarkContextObject()
+
+    if log_level:
+        init_logging(log_level, log_file=log_file)
+    elif log_file:
+        ctx.fail("--log-file requires specifying --log-level.")
 
     toplevel = get_root()
     project = Project(toplevel)
@@ -247,7 +268,6 @@ def verify(ctx, target, all, bootstrap):
     \b
     TARGET the commit or ref to verify.
     """
-
     project = ctx.obj["project"]
     ensure_bootstrap_verified(project)
 
@@ -289,9 +309,10 @@ class _DefaultFormatter(logging.Formatter):
 def main():
     handler = logging.StreamHandler()
     handler.setLevel(logging.INFO)
-    formatter = _DefaultFormatter(True)
+    formatter = _DefaultFormatter()
     handler.setFormatter(formatter)
     logging.getLogger().addHandler(handler)
+
     try:
         _add_subcommands(cli)
         cli(obj={})
