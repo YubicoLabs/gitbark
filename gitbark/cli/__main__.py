@@ -274,11 +274,13 @@ def verify(ctx, target, all, bootstrap):
     try:
         if all:
             verify_all(project)
+            logger.info("All branches verified successfully")
             click.echo("Repository is in valid state!")
         else:
             head, ref = project.repo.resolve(target)
             if ref:
                 verify_ref(project, ref, head)
+                logger.info(f"'{ref}' verified successfully")
                 click.echo(f"{format_ref(ref)} is in a valid state!")
             elif not bootstrap:
                 raise CliFail(
@@ -286,6 +288,7 @@ def verify(ctx, target, all, bootstrap):
                 )
             else:
                 verify_commit(project, head, bootstrap)
+                logger.info(f"Commit {head.hash.hex()} verified successfully")
                 click.echo(f"Commit {head.hash.hex()} is in a valid state!")
     except RuleViolation as e:
         # TODO: Error message here?
