@@ -133,6 +133,7 @@ def add_rules(ctx):
             "Please commit the changes!"
         ),
     )
+    logger.info("Commit rules added successfully")
     click.echo("Commit rules configuration was committed successfully!")
 
 
@@ -150,6 +151,7 @@ def add_modules(ctx):
         ),
     )
     checkout_or_orphan(project, branch)
+    logger.info("Bark modules added successfully")
     click.echo("Bark modules configuration was committed successfully!")
 
 
@@ -172,6 +174,7 @@ def protect(ctx):
         ),
     )
     checkout_or_orphan(project, branch)
+    logger.info(f"'{branch}' added to 'bark_rules' successfully")
     click.echo("Bark modules configuration was committed successfully!")
 
 
@@ -194,6 +197,7 @@ def install(ctx):
 
     try:
         install_cmd(project)
+        logger.info("Hooks installed successfully")
         click.echo("Installed GitBark successfully!")
     except RuleViolation as e:
         pp_violation(e)
@@ -233,6 +237,10 @@ def ref_update(ctx, old, new, ref):
         verify_ref_update(project, ref, head)
         if os.path.exists(fail_head):
             os.remove(fail_head)
+        # TODO: Need to enable logging through env variable
+        logger.info(
+            f"Reference update ({old}->{new}) on {ref} " "validated successfully"
+        )
     except RuleViolation as e:
         with open(fail_head, "w") as f:
             f.write(head.hash.hex())
