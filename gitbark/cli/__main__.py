@@ -134,7 +134,6 @@ def add_rules(ctx):
         ),
     )
     logger.info("Commit rules added successfully")
-    click.echo("Commit rules configuration was committed successfully!")
 
 
 @cli.command()
@@ -152,7 +151,6 @@ def add_modules(ctx):
     )
     checkout_or_orphan(project, branch)
     logger.info("Bark modules added successfully")
-    click.echo("Bark modules configuration was committed successfully!")
 
 
 @cli.command()
@@ -174,8 +172,7 @@ def protect(ctx):
         ),
     )
     checkout_or_orphan(project, branch)
-    logger.info(f"'{branch}' added to 'bark_rules' successfully")
-    click.echo("Bark modules configuration was committed successfully!")
+    logger.info(f"'{branch}' added to 'bark_rules'")
 
 
 @cli.command()
@@ -198,7 +195,6 @@ def install(ctx):
     try:
         install_cmd(project)
         logger.info("Hooks installed successfully")
-        click.echo("Installed GitBark successfully!")
     except RuleViolation as e:
         pp_violation(e)
         sys.exit(1)
@@ -238,9 +234,7 @@ def ref_update(ctx, old, new, ref):
         if os.path.exists(fail_head):
             os.remove(fail_head)
         # TODO: Need to enable logging through env variable
-        logger.info(
-            f"Reference update ({old}->{new}) on {ref} " "validated successfully"
-        )
+        logger.info(f"{ref} is valid")
     except RuleViolation as e:
         with open(fail_head, "w") as f:
             f.write(head.hash.hex())
@@ -282,22 +276,19 @@ def verify(ctx, target, all, bootstrap):
     try:
         if all:
             verify_all(project)
-            logger.info("All branches verified successfully")
-            click.echo("Repository is in valid state!")
+            logger.info("All references are valid")
         else:
             head, ref = project.repo.resolve(target)
             if ref:
                 verify_ref(project, ref, head)
-                logger.info(f"'{ref}' verified successfully")
-                click.echo(f"{format_ref(ref)} is in a valid state!")
+                logger.info(f"{ref} is valid")
             elif not bootstrap:
                 raise CliFail(
-                    "verifying a single commit requires specifying a bootstrap with -b"
+                    "Verifying a single commit requires specifying a bootstrap with -b"
                 )
             else:
                 verify_commit(project, head, bootstrap)
-                logger.info(f"Commit {head.hash.hex()} verified successfully")
-                click.echo(f"Commit {head.hash.hex()} is in a valid state!")
+                logger.info(f"Commit {head.hash.hex()} is valid")
     except RuleViolation as e:
         # TODO: Error message here?
         pp_violation(e)
@@ -317,13 +308,17 @@ class _DefaultFormatter(logging.Formatter):
         return message
 
 
+class _ClickHandler(logging.Handler):
+    def emit(self, record) -> None:
+        click.echo(record.getMessage())
+
+
 def main():
-    handler = logging.StreamHandler()
-    handler.setLevel(logging.INFO)
+    handler = _ClickHandler()
     formatter = _DefaultFormatter()
     handler.setFormatter(formatter)
     logging.getLogger().addHandler(handler)
-
+    logging.getLogger().setLevel(logging.INFO)
     try:
         _add_subcommands(cli)
         cli(obj={})

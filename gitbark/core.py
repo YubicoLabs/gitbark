@@ -49,10 +49,6 @@ def _validate_rules(commit: Commit, cache: Cache) -> None:
     validators = _nearest_valid_ancestors(commit, cache)
     if not validators:
         raise RuleViolation("No valid ancestors")
-    logger.debug(
-        f"Validators for commit {commit.hash.hex()}: "
-        f"[{', '.join([v.hash.hex() for v in validators])}]"
-    )
     if len(validators) > 1:
         rule: CommitRule = AllCommitRule(
             "all",
@@ -62,7 +58,7 @@ def _validate_rules(commit: Commit, cache: Cache) -> None:
         )
     else:
         rule = _get_commit_rule(validators.pop(), cache)
-    logger.debug(f"Applying rules for commit {commit.hash.hex()}")
+    logger.debug(f"Validating rules for commit {commit.hash.hex()}")
     rule.validate(commit)
 
     # Also ensure that commit has valid rules
@@ -79,10 +75,6 @@ def _validate_commit(
     on_valid: Callable[[Commit], None],
 ) -> None:
     if not is_descendant(bootstrap, commit):
-        logger.error(
-            f"Commit {commit.hash.hex()} is not a descendant "
-            f"to bootstrap {bootstrap.hash.hex()}."
-        )
         raise RuleViolation(f"Bootstrap '{bootstrap.hash.hex()}' is not an ancestor")
 
     # Re-validate if previously invalid

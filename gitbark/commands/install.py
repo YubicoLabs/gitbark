@@ -17,6 +17,9 @@ from ..project import Project
 import pkg_resources
 import os
 import stat
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def install(project: Project) -> None:
@@ -28,7 +31,7 @@ def install(project: Project) -> None:
 
 
 def install_hooks(project: Project):
-    print("Installing hooks....")
+    logger.debug("Installing hooks...")
     reference_transaction_data = pkg_resources.resource_string(
         __name__, "hooks/reference_transaction"
     )
@@ -40,7 +43,7 @@ def install_hooks(project: Project):
         f.write(reference_transaction_data)
     make_executable(reference_transaction_path)
 
-    print(f"Hooks installed in {hooks_path}")
+    logger.info(f"Hooks installed in {hooks_path}")
 
 
 def make_executable(path: str):
