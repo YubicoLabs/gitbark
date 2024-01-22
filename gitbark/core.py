@@ -18,6 +18,9 @@ from .rule import RuleViolation, CommitRule, AllCommitRule, RefRule
 from .objects import BarkRules, RuleData
 from typing import Callable, Optional
 import yaml
+import logging
+
+logger = logging.getLogger(__name__)
 
 BARK_RULES_BRANCH = "bark_rules"
 BARK_RULES_REF = f"{BRANCH_REF_PREFIX}{BARK_RULES_BRANCH}"
@@ -46,7 +49,6 @@ def _validate_rules(commit: Commit, cache: Cache) -> None:
     validators = _nearest_valid_ancestors(commit, cache)
     if not validators:
         raise RuleViolation("No valid ancestors")
-
     if len(validators) > 1:
         rule: CommitRule = AllCommitRule(
             "all",
@@ -56,6 +58,7 @@ def _validate_rules(commit: Commit, cache: Cache) -> None:
         )
     else:
         rule = _get_commit_rule(validators.pop(), cache)
+    logger.debug(f"Validating rules for commit {commit.hash.hex()}")
     rule.validate(commit)
 
     # Also ensure that commit has valid rules
@@ -110,6 +113,7 @@ def validate_ref_rules(
     cache: Cache, head: Commit, ref: str, rule_data: RuleData
 ) -> None:
     """Validated HEAD of ref according to ref rules"""
+    logger.debug(f"Validating ref rules for commit {head.hash.hex()} on {ref}")
     validator = head.repo.references[BARK_RULES_REF]
     rule = RefRule.load_rule(rule_data, validator, cache)
     rule.validate(head, ref)
@@ -122,10 +126,14 @@ def validate_commit_rules(
     on_valid: Callable[[Commit], None] = lambda commit: None,
 ) -> None:
     """Validates commit rules for a given commit"""
+    logger.debug(
+        f"Validating commit rules for {head.hash.hex()} "
+        f"using {bootstrap.hash.hex()} as bootstrap"
+    )
     if head == bootstrap:
+        logger.debug(f"Commit {head.hash.hex()} is bootstrap. Not running validation")
         on_valid(bootstrap)
         return
-
     try:
         _validate_commit(head, bootstrap, cache, on_valid)
     except RuleViolation as e:

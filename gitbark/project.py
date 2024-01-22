@@ -21,6 +21,9 @@ from enum import Enum
 import os
 import sys
 import re
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class PROJECT_FILES(str, Enum):
@@ -110,6 +113,7 @@ class Project:
             with open(r_file, "wb") as f:
                 f.write(requirements)
 
+            logger.debug("Installing modules")
             pip_path = os.path.join(self.env_path, "bin", "pip")
             cmd(pip_path, "install", "-r", r_file)
 

@@ -25,9 +25,14 @@ from ..rule import RuleViolation
 from ..project import Project
 from ..cli.util import CliFail
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 def verify_bark_rules(project: Project) -> BarkRules:
     """Verifies the bark_rules branch."""
+    logger.debug(f"Verifying ref: {BARK_RULES_REF}")
     head = project.repo.references[BARK_RULES_REF]
     bootstrap = project.bootstrap
     if not bootstrap:
@@ -124,6 +129,7 @@ def _do_verify_ref(
     head: Commit,
     rules: list[RefRuleData],
 ) -> None:
+    logger.debug(f"Verifying ref: {ref}")
     for rule in rules:
         bootstrap = Commit(rule.bootstrap, project.repo)
         cache = project.get_cache(bootstrap)

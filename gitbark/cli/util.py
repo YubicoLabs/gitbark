@@ -38,6 +38,43 @@ class CliFail(Exception):
         self.status = status
 
 
+class EnumChoice(click.Choice):
+    """
+    Use an enum's member names as the definition for a choice option.
+
+    Enum member names MUST be all uppercase. Options are not case sensitive.
+    Underscores in enum names are translated to dashes in the option choice.
+    """
+
+    def __init__(self, choices_enum, hidden=[]):
+        self.choices_names = [
+            v.name.replace("_", "-") for v in choices_enum if v not in hidden
+        ]
+        super().__init__(
+            self.choices_names,
+            case_sensitive=False,
+        )
+        self.hidden = hidden
+        self.choices_enum = choices_enum
+
+    def convert(self, value, param, ctx):
+        if isinstance(value, self.choices_enum):
+            return value
+
+        try:
+            # Allow aliases
+            self.choices = [
+                k.replace("_", "-")
+                for k, v in self.choices_enum.__members__.items()
+                if v not in self.hidden
+            ]
+            name = super().convert(value, param, ctx).replace("-", "_")
+        finally:
+            self.choices = self.choices_names
+
+        return self.choices_enum[name]
+
+
 def click_prompt(prompt, err=True, **kwargs):
     """Replacement for click.prompt to better work when piping
     input to the command.

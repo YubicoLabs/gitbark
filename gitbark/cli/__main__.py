@@ -33,10 +33,12 @@ from gitbark.project import Project
 from gitbark.rule import RuleViolation
 from gitbark.util import cmd
 from gitbark.git import Commit, BRANCH_REF_PREFIX, TAG_REF_PREFIX
+from gitbark.logging import init_logging, LOG_LEVEL
 from .util import (
     BarkContextObject,
     click_callback,
     CliFail,
+    EnumChoice,
     pp_violation,
     get_root,
     _add_subcommands,
@@ -81,8 +83,27 @@ def format_ref(ref: str) -> str:
 
 @click.group()
 @click.pass_context
-def cli(ctx):
+@click.option(
+    "-l",
+    "--log-level",
+    default=None,
+    type=EnumChoice(LOG_LEVEL, hidden=[LOG_LEVEL.NOTSET]),
+    help="enable logging at given verbosity level",
+)
+@click.option(
+    "--log-file",
+    default=None,
+    type=str,
+    metavar="FILE",
+    help="write log to FILE instead of printing to stderr (requires --log-level)",
+)
+def cli(ctx, log_level, log_file):
     ctx.obj = BarkContextObject()
+
+    if log_level:
+        init_logging(log_level, log_file=log_file)
+    elif log_file:
+        ctx.fail("--log-file requires specifying --log-level.")
 
     toplevel = get_root()
     project = Project(toplevel)
@@ -112,7 +133,7 @@ def add_rules(ctx):
             "Please commit the changes!"
         ),
     )
-    click.echo("Commit rules configuration was committed successfully!")
+    logger.info("Commit rules added successfully")
 
 
 @cli.command()
@@ -129,7 +150,7 @@ def add_modules(ctx):
         ),
     )
     checkout_or_orphan(project, branch)
-    click.echo("Bark modules configuration was committed successfully!")
+    logger.info("Bark modules added successfully")
 
 
 @cli.command()
@@ -151,7 +172,7 @@ def protect(ctx):
         ),
     )
     checkout_or_orphan(project, branch)
-    click.echo("Bark modules configuration was committed successfully!")
+    logger.info(f"'{branch}' added to 'bark_rules'")
 
 
 @cli.command()
@@ -173,7 +194,7 @@ def install(ctx):
 
     try:
         install_cmd(project)
-        click.echo("Installed GitBark successfully!")
+        logger.info("Hooks installed successfully")
     except RuleViolation as e:
         pp_violation(e)
         sys.exit(1)
@@ -212,6 +233,8 @@ def ref_update(ctx, old, new, ref):
         verify_ref_update(project, ref, head)
         if os.path.exists(fail_head):
             os.remove(fail_head)
+        # TODO: Need to enable logging through env variable
+        logger.info(f"{ref} is valid")
     except RuleViolation as e:
         with open(fail_head, "w") as f:
             f.write(head.hash.hex())
@@ -247,26 +270,25 @@ def verify(ctx, target, all, bootstrap):
     \b
     TARGET the commit or ref to verify.
     """
-
     project = ctx.obj["project"]
     ensure_bootstrap_verified(project)
 
     try:
         if all:
             verify_all(project)
-            click.echo("Repository is in valid state!")
+            logger.info("All references are valid")
         else:
             head, ref = project.repo.resolve(target)
             if ref:
                 verify_ref(project, ref, head)
-                click.echo(f"{format_ref(ref)} is in a valid state!")
+                logger.info(f"{ref} is valid")
             elif not bootstrap:
                 raise CliFail(
-                    "verifying a single commit requires specifying a bootstrap with -b"
+                    "Verifying a single commit requires specifying a bootstrap with -b"
                 )
             else:
                 verify_commit(project, head, bootstrap)
-                click.echo(f"Commit {head.hash.hex()} is in a valid state!")
+                logger.info(f"Commit {head.hash.hex()} is valid")
     except RuleViolation as e:
         # TODO: Error message here?
         pp_violation(e)
@@ -286,12 +308,17 @@ class _DefaultFormatter(logging.Formatter):
         return message
 
 
+class _ClickHandler(logging.Handler):
+    def emit(self, record) -> None:
+        click.echo(record.getMessage())
+
+
 def main():
-    handler = logging.StreamHandler()
-    handler.setLevel(logging.INFO)
-    formatter = _DefaultFormatter(True)
+    handler = _ClickHandler()
+    formatter = _DefaultFormatter()
     handler.setFormatter(formatter)
     logging.getLogger().addHandler(handler)
+    logging.getLogger().setLevel(logging.INFO)
     try:
         _add_subcommands(cli)
         cli(obj={})
