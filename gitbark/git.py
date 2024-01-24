@@ -199,7 +199,7 @@ class Repository:
     @property
     def references(self) -> dict[str, Commit]:
         return {
-            ref.name: Commit(ref.target.raw, self)
+            ref.name: Commit(ref.resolve().target.raw, self)
             for ref in self._object.references.iterator()
         }
 
