@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from ..cli.util import CliFail
 from ..project import Project
 
 import pkg_resources
@@ -22,12 +23,22 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def install(project: Project) -> None:
+def install(project: Project, force: bool) -> None:
     """
     Installs GitBark
     """
-    if not hooks_installed(project):
-        install_hooks(project)
+    hooks_missing = hooks_not_installed(project)
+    if hooks_missing:
+        hooks_conflicting = [hook_path for hook_path in hooks_missing if os.path.exists(hook_path)]
+        if force or not hooks_conflicting:
+            install_hooks(project)
+
+        else:
+            conflict_list = '\n'.join(f'{hook_path}' for hook_path in hooks_conflicting)
+            raise CliFail(
+                'Hooks already exist:\n\n'
+                f'{conflict_list}\n\n'
+                'Please delete them or re-run this command with the --force flag.')
 
 
 def install_hooks(project: Project):
@@ -54,7 +65,7 @@ def make_executable(path: str):
     os.chmod(path, new_permissions)
 
 
-def hooks_installed(project: Project):
+def hooks_not_installed(project: Project) -> list[str]:
     reference_transaction_data = pkg_resources.resource_string(
         __name__, "hooks/reference_transaction"
     ).decode()
@@ -63,10 +74,10 @@ def hooks_installed(project: Project):
     reference_transaction_path = f"{hooks_path}/reference-transaction"
 
     if not os.path.exists(reference_transaction_path):
-        return False
+        return [reference_transaction_path]
 
     with open(reference_transaction_path, "r") as f:
         if not f.read() == reference_transaction_data:
-            return False
+            return [reference_transaction_path]
 
-    return True
+    return []

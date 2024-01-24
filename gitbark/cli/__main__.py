@@ -177,7 +177,15 @@ def protect(ctx):
 
 @cli.command()
 @click.pass_context
-def install(ctx):
+@click.option(
+    "-f",
+    "--force",
+    is_flag=True,
+    show_default=True,
+    default=False,
+    help="Overwrite existing hooks.",
+)
+def install(ctx, force):
     """
     Install GitBark modules in repo.
 
@@ -193,7 +201,7 @@ def install(ctx):
     ensure_bootstrap_verified(project)
 
     try:
-        install_cmd(project)
+        install_cmd(project, force)
         logger.info("Hooks installed successfully")
     except RuleViolation as e:
         pp_violation(e)
