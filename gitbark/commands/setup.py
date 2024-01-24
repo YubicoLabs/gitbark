@@ -322,7 +322,7 @@ def setup(project: Project) -> None:
             content=yaml.safe_dump(asdict(bark_rules), sort_keys=False),
         )
 
-        _confirm_commit(commit_message="Add initial modules and rules (made by bark).")
+        _confirm_commit(commit_message="Add initial modules and rules (made by bark)")
 
     active_branch = get_active_branch(project)
     if active_branch:  # checkout if we have an active branch
@@ -332,12 +332,12 @@ def setup(project: Project) -> None:
 
     if not get_commit_rules(project):
         add_commit_rules_interactive(project)
-        _confirm_commit(commit_message="Initial rules (made by bark).")
+        _confirm_commit(commit_message="Initial rules (made by bark)")
 
     if branch != BARK_RULES_BRANCH and not branch_in_bark_rules_yaml(project, branch):
         cmd("git", "checkout", BARK_RULES_BRANCH)
         add_branches_interactive(project, branch)
-        _confirm_commit(f"Add {branch} to bark_rules (made by bark).")
+        _confirm_commit(f"Add {branch} to bark_rules (made by bark)")
         cmd(
             "git", "checkout", branch
         )  # run this if the commit was made in interactive mode
