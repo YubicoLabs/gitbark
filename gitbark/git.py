@@ -15,7 +15,7 @@
 from .objects import RuleData
 from .util import cmd
 
-from pygit2 import Commit as _Commit, Tree, Repository as _Repository
+from pygit2 import Commit as _Commit, Tree, Repository as _Repository, Tag as _Tag
 from typing import Union, Tuple, Optional
 import yaml
 import re
@@ -72,7 +72,9 @@ class Commit:
         if not isinstance(hash, bytes):
             raise ValueError(f"Commit hash is not bytes {hash}")
         self._object: _Commit = repo._object.get(hash.hex())
-        if not isinstance(self._object, _Commit):
+        if isinstance(self._object, _Tag):
+            self._object = self._object.get_object()
+        if not isinstance(self._object, (_Commit, _Tag)):
             raise ValueError(f"No commit found with hash {hash.hex()}")
 
     @property
