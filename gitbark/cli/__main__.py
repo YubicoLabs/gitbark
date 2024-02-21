@@ -179,10 +179,10 @@ def protect(ctx):
 @click.pass_context
 def install(ctx):
     """
-    Install GitBark modules in repo.
+    Install hooks.
 
-    This command assumes GitBark has been configured in the repository. If so,
-    it will verify it and install required GitBark modules and hooks.
+    Install GitBark in Git hooks, so that verification is performed automatically
+    on repository changes.
     """
     project = ctx.obj["project"]
 
