@@ -1,0 +1,35 @@
+== GitBark
+
+A framework that validates commits based on a set of fully customizable rules. This tool empowers you to enforce specific conditions, ensuring the integrity and adherence of your commits to project standards. Explore GitBark to elevate the validation process for a more robust and reliable version control workflow.
+
+**NOTE: This is work in progress**
+
+=== License
+
+....
+Copyright 2024 Yubico AB
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+....
+
+[#installation]
+=== Installation
+Currently GitBark can only be installed from source using the following command:
+
+    pip install "git+https://github.com/YubicoLabs/gitbark.git
+
+=== Usage
+Read the link:doc/Usage.adoc[Usage Guide] for instructions on how to use GitBark.
+
+=== Documentation
+Read the link:doc/Overview.adoc[Overview] for a more comprehensive overview of GitBark.
