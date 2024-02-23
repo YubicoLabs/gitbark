@@ -127,7 +127,7 @@ def add_rules(ctx):
     project = ctx.obj["project"]
     add_commit_rules_interactive(project)
     _confirm_commit(
-        commit_message="Modify commit rules (made by bark).",
+        commit_message="Modify commit rules (made by bark)",
         manual_action=(
             "The 'commit_rules.yaml' file has been staged. "
             "Please commit the changes!"
@@ -144,7 +144,7 @@ def add_modules(ctx):
     branch = project.repo.branch
     add_modules_interactive(project)
     _confirm_commit(
-        commit_message="Modify bark modules (made by bark).",
+        commit_message="Modify bark modules (made by bark)",
         manual_action=(
             "The 'bark_rules.yaml' file has been staged. Please commit the changes!"
         ),
@@ -166,7 +166,7 @@ def protect(ctx):
     branch = project.repo.branch
     add_branches_interactive(project, branch)
     _confirm_commit(
-        commit_message="Modify bark modules (made by bark).",
+        commit_message="Modify bark modules (made by bark)",
         manual_action=(
             "The 'bark_rules.yaml' file has been staged. Please commit the changes!"
         ),
