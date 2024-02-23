@@ -5,7 +5,7 @@ version = "0.1.0"
 description = "A git repository consistency verification framework"
 authors = ["Elias Bonnici <elias.bonnici@yubico.com>"]
 license = "APACHE-2.0"
-readme = "README.md"
+readme = "README.adoc"
 packages=[{include = "gitbark"}]
 
 [tool.poetry.dependencies]
