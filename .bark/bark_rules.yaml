@@ -1,0 +1,3 @@
+bark_rules:
+- require_fast_forward
+project: []

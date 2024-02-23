@@ -1,0 +1,3 @@
+rules:
+- require_signature:
+    authorized_keys: elias.pub
