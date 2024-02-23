@@ -1,3 +1,7 @@
 bark_rules:
 - require_fast_forward
-project: []
+project:
+- bootstrap: f4247fb3b4352fd125df3cabec3d70b949c3ed44
+  refs:
+  - pattern: refs/heads/main
+    rules: []
