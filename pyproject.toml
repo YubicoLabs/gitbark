@@ -6,7 +6,10 @@ description = "A git repository consistency verification framework"
 authors = ["Elias Bonnici <elias.bonnici@yubico.com>"]
 license = "APACHE-2.0"
 readme = "README.adoc"
-packages=[{include = "gitbark"}]
+packages=[
+    {include = "gitbark"},
+    {include = "pytest_gitbark"}
+]
 
 [tool.poetry.dependencies]
 python = "^3.9"
@@ -28,9 +31,11 @@ all = "gitbark.rule:AllRefRule"
 any = "gitbark.rule:AnyRefRule"
 none = "gitbark.rule:NoneRefRule"
 
+[tool.poetry.plugins.pytest11]
+pytest_gitbark = "pytest_gitbark.plugin"
+
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.2.2"
-pytest-gitbark = {git = "https://github.com/YubicoLabs/pytest-gitbark.git"}
 
 [build-system]
 requires = ["poetry-core"]
