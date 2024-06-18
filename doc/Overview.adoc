@@ -1,0 +1,147 @@
+== Overview
+This document provides a comprehensive overview of GitBark and its components, and how they can be used to ensure the integrity of source code repositories. For a quick guide on how to get started, refer to our link:Usage.adoc[Usage Guide].
+
+== Table of Contents
+
+* <<Commit Rules>>
+* <<Bark Rules>>
+* <<Bark Modules>>
+* <<Git Hooks>>
+
+[#commit-rules]
+=== Commit Rules
+Commit rules can be thought of as a set of conditions that a commit must meet to be considered valid. This section explores the concept of commit rules and their implementation and usage within GitBark.
+
+==== Implementation
+Technically, commit rules are functions that operate on commit objects, potentially raising an exception to indicate whether the commit satisfies specified rule conditions. These functions are implemented in Python modules, referred to as Bark Modules. Serving as self-contained units, these modules encapsulate the behavior of one or more rules and reside outside GitBark, typically in Git repositories or on PyPI. They can be seamlessly integrated into GitBark for rule evaluation (refer to <<Bark Modules>> for more details).
+
+While developers have the flexibility to create custom commit rules, we have pre-built a Bark Module called (link:https://github.com/YubicoLabs/gitbark-core[GitBark Core]), encompassing a collection of useful rules ready for immediate use.
+
+[#specification]
+==== Specification
+To define the commit rules applicable to commits, developers must specify them in `/.bark/commit_rules.yaml`, which should be checked into the repository. Since this file is under version control, every commit points to a specific version of the `commit_rules.yaml` file (more on why this is important is described in the upcoming sections).
+
+The `commit_rules.yaml` file follows a specific structure with a list of rules. Each rule may have optional parameters as described below:
+
+[source, yaml]
+----
+rules:
+- rule_name_1:
+    parameter1: value1
+    parameter2: value2
+- rule_name_2:
+    # No parameters for rule_name_2
+- rule_name_3:
+    parameter1: value1
+    parameter2: value2
+    parameter3: value3
+----
+The `rule_name` serves as the identifier for the rule defined in the corresponding Bark Module. The same principle applies to `parameter`; some rules support parameters while others do not, depending on the implementation.
+
+By default, all rules in the outer `rules` clause are validated using AND logic (all rules need to be satisfied). However, one can use the `any` clause to create more complex rule patterns. Rules defined in this clause are validated using OR logic (at least one of the rules need to be satisfied). See example below:
+
+[source, yaml]
+----
+rules:
+- commit_rule_name_1:
+    parameter1: value1
+    parameter2: value2
+- any:
+    - commit_rule_name_2:
+        # No parameters for rule_name_2
+    - commit_rule_name_3:
+        parameter1: value1
+        parameter2: value2
+        parameter3: value3
+----
+
+==== Validation
+A commit is considered valid if it passes the rules defined in its "nearest" **valid** ancestor commits. We call these commits **validators**, which are the commits that define the rules that a new commit should be validated against. The **validators** for a commit **c** are chosen the following way:
+
+* If the parent of **c** itself is valid, the parent becoms a **validator** for **c**.
+* If the parent of **c** is not valid, **c** inherits all **validators** that the parent has.
+
+Once the validator commits are collected, the commit rules defined in them are applied to the commit being validated. The commit is considered valid if it passes **ALL** these rules.
+
+[#bootstrap]
+===== Bootstrap
+Since validation follows a recursive pattern, at some point we will reach a commit that does not have any parents or has parents that do not define any rules. This presents a bootstrapping issue which we solve using a bootstrap commit, that define the initial rules for a branch and is explicitly trusted and considered valid. Bootstrap commits for specific branches are defined in <<Bark Rules>>.
+
+[#bark-rules]
+=== Bark Rules
+Bark Rules are repository-specific and define the configuration for validating specific branches, specifying conditions and criteria for the validation process. This configuration is encapsulated within a file named `/.bark/bark_rules.yaml`, which is committed to an orphaned branch named `bark_rules`.
+
+[#bark-rules-specification]
+==== Specification
+The `bark_rules.yaml` file adheres to a structured format wherein bootstrap commits are associated with specific references, identified through a regex pattern match. This mechanism informs GitBark about which references (typically branches) to validate, using the designated bootstrap commit. The example below illustrates that `refs/heads/main` is configured for validation, with commit `8bd6128c239e1735858927af6cc91a8cf46c1924` as the designated bootstrap commit.
+
+[source, yaml]
+----
+project:
+- bootstrap: 8bd6128c239e1735858927af6cc91a8cf46c1924
+  refs:
+  - pattern: refs/heads/main
+----
+
+Besides specifying what branches should be validated using a specific bootstrap commit, the `bark_rules.yaml` file also allows us to define <<Ref Rules>>.
+
+[#ref-rules]
+===== Ref Rules
+Ref Rules are rules tailored for specific references (branches). In contrast to Commit Rules, which are not reference-specific, Ref Rules exclusively apply to the commits a particular reference points to. This distinction enables the definition of distinct rules for various references, as exemplified in the `bark_rules.yaml` file below.
+
+[source, yaml]
+----
+project:
+- bootstrap: 8bd6128c239e1735858927af6cc91a8cf46c1924
+  refs:
+  - pattern: refs/heads/main
+    rules:
+    - ref_rule_name_1:
+        parameter1: value1
+    - ref_rule_name_2:
+  - pattern: refs/heads/feat
+    rules:
+    - ref_rule_name_3:
+        parameter3: value3
+----
+
+Ref Rules can also be defined for the `bark_rules` branch itself by including them in the `bark_rules` clause, as shown below:
+
+[source, yaml]
+----
+bark_rules:
+- ref_rule_name_1:
+    parameter1: value1
+project:
+...
+----
+
+[#root-of-trust]
+==== Root of trust
+Since the `bark_rules.yaml` file among other things defines what bootstrap commits should be used to validate different branches, it is essential to protect the integrity of the `bark_rules` branch itself. As such, the `bark_rules` branch can have Commit Rules itself that are validated using the root commit (of the `bark_rules` branch) as bootstrap. All other bootstrap commits for commit validation are covered by this bootstrap commit. As such, when the system is initialized, the user is asked to confirm the hash of this commit (like when connecting to an SSH server the first time), as illustrated below.
+
+----
+$ bark install
+The bootstrap commit (7b54840ecd6a484ec78314ff32e57fb38b4769bb) of the bark_rules branch has not been verified!
+Do you want to trust this commit as the bootstrap for bark? [y/N]:
+----
+
+[#bark-modules]
+=== Bark Modules
+
+Commit Rules and Ref Rules are implemented as Python modules or packages, referred to as 'Bark Modules.' These modules reside outside of GitBark, typically hosted in Git repositories or available on PyPI. To utilize specific Commit Rules and Ref Rules, it is necessary to specify which Bark Modules to employ. This configuration is accomplished in the `bark_rules` branch within the `requirements.txt` file, adhering to the standard pip requirements file. When specified GitBark installs the specific modules in a virtual environment residing in the repository, so that they can be used during validation.
+
+Here is an example requirements file including link:https://github.com/YubicoLabs/gitbark-core[GitBark Core] as a Bark Module:
+
+----
+git+https://github.com/YubicoLabs/gitbark-core.git
+----
+
+=== Git Hooks
+Upon receiving updates to the local repository, commonly triggered by actions such as `git pull`, `git commit`, and `git push`, GitBark offers automated verification in alignment with the specified rules. This seamless process is made possible through the integration of client-side Git hooks. This way, rules can be enforced securely across repository clones without needing to trust intermediate clones. For example, a team of developers may enforce specific rules on their local clones even if a central Git hosting service does not yet support enforcing those rules, and may allow updates that violate those rules. The local clones will always remain in a consistent and trustworthy state in relation to established rules.
+
+While this particular functionality isn't enabled by default, we strongly recommend enabling it to ensure the repository consistently maintains a trustworthy and consistent state. Achieve this by executing the `bark install` command, which effortlessly installs the essential Git hooks.
+
+
+
+

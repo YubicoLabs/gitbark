@@ -1,0 +1,164 @@
+== Usage
+Now that you have GitBark link:../README.adoc#installation[installed], you can start using it. Here are some of the most common commands you'll need.
+
+=== Setup GitBark
+To setup GitBark, `cd` into your Git repository and run `bark setup`.
+
+==== 1. Define Bark Modules
+Begin by defining the Bark Modules you want to inlude (for more information on Bark Modules see link:Overview.adoc#bark-modules[here]). The example below shows how to add the link:https://github.com/YubicoLabs/gitbark-core[GitBark Core] module.
+
+----
+$ bark setup
+Define what Bark Modules to add!
+
+Module to add (leave blank to skip): git+https://github.com/YubicoLabs/gitbark-core.git
+Module to add (leave blank to skip):
+----
+Press Enter to continue and install the specified modules in your project.
+
+==== 2. Specify rules for the `bark_rules` branch
+The next step involves specifying the rules for the `bark_rules` branch, which contains configuration details for validating specific branches (for more information on Bark Rules see link:Overview.adoc#bark-rules[here]).
+
+===== 2.1 Commit Rules for the `bark_rules` branch
+Choose whether to specify Commit Rules for the `bark_rules` branch (for more information on Commit Rules see link:Overview.adoc#commit-rules[here]). The setup wizard lists available rules from the selected Bark Modules, enabling interactive rule selection.
+
+----
+Specify Commit Rules for the 'bark_rules' branch!
+
+Choose rule (leave blank to skip):
+ [0] file_not_modified    		Prevents modification to specific files.
+ [1] max_parents          		Specifies the maximum number of parents for a commit.
+ [2] require_signature    		Requires the commit to be signed.
+ [3] require_valid_parents		Specifies whether non-valid parents should be allowed.
+ > 1
+----
+
+After completing the rule setup, GitBark generates the commit rule specification that will be included in `commit_rules.yaml` (for more details on the `commit_rules.yaml` file see link:Overview.adoc#specification[here]).
+
+----
+Generated 'commit_rules.yaml'
+
+rules:
+- require_signature:
+    authorized_keys: john.pub
+
+Do you confirm generation? [y/N]: y
+----
+
+===== 2.2 Ref Rules for the `bark_rules` branch
+Choose whether to define Ref Rules for the `bark_rules` branch.
+As opposed to Commit Rules, these only apply to specific references (for more information on Ref Rules see link:Overview.adoc#ref-rules[here]).
+
+----
+Specify Branch Rules for the 'bark_rules' branch!
+
+Choose rule (leave blank to skip):
+ [0] require_approval    		Requires commits on the ref to be *Approved*.
+
+ [1] require_fast_forward		Prevents force pushing (non-linear history).
+ >
+----
+
+After setup, Gitbark generates a ref rule specification that will be included in `bark_rules.yaml` (for more details on the `bark_rules.yaml` file see link:Overview.adoc#bark-rules-specification[here]).
+----
+Generated 'bark_rules.yaml'
+
+bark_rules:
+- require_approval:
+    authorized_authors:
+    - john.doe@test.com
+    threshold: 1
+project: []
+
+Do you confirm generation? [y/N]: y
+Do you want 'bark' to commit the changes? [y/N]: y
+----
+
+==== 3. Specify rules for the `main` branch
+Depending on which `branch` you initiated the `bark setup` command from, GitBark will prompt you to specify the rules for that branch (commonly the `main` branch).
+
+===== 3.1 Commit Rules for the `main` branch
+Specify Commit Rules for the `main` branch, similar to process in <<2.1 Commit Rules for the `bark_rules` branch, 2.1>>.
+
+===== 3.2 Bootstrap for the `main` branch
+Define the boostrap commit used when validating the `main` branch (for more information on Bootstrap commit see link:Overview.adoc#bootstrap[here]). By default, it will prompt you with the current HEAD commit of the branch as shown below, but you can also choose another commit as the bootstrap by providing the hash.
+
+----
+Configure how the 'main' branch should be validated!
+
+Do you want to verify the 'main' branch using commit 80a177b2b7fc39b4dd664fcda0cd185457fbaaeb as bootstrap? [y/N]:
+----
+
+===== 3.3 Ref rules for the `main` branch
+Specify Ref Rules for the `main` branch, similar to process in <<2.2 Ref Rules for the `bark_rules` branch, 2.2>>.
+
+===== 4. Finish
+Upon successful completion you'll see the message
+
+----
+Bark is initialized!
+----
+
+This indicates the setup process is complete.
+
+=== Install hooks
+To enable GitBark to validate repository changes triggered by commands like `git pull`, `git push`, and `git commit`, execute the command `bark install`.
+
+----
+$ bark install
+----
+
+Upon running this command, GitBark will prompt you to verify the bootstrap commit of the `bark_rules` branch (see more on why this is link:Overview.adoc#root-of-trust[here]). Confirm the trustworthiness of this commit, as shown below:
+
+----
+The bootstrap commit (8339a8653f0becf50a79d13e3eb76cd28f383ff2) of the bark_rules branch has not been verified!
+Do you want to trust this commit as the bootstrap for bark? [y/N]: y
+----
+
+Once confirmed, GitBark installs the necessary Git hooks in the repository, ensuring that automatic verification is seamlessly performed on subsequent changes.
+
+=== Verify branch
+To manually verify a branch execute the command `bark verify`.
+
+----
+$ bark verify
+----
+
+By default this will verify the branch you are currently on. Alternatively, you can verify a single commit or a specific branch by providing a TARGET to, as shown below.
+
+----
+$ bark verify feat
+----
+Note that if the TARGET is not defined in `bark_rules.yaml` you must specify a boostrap with the `--boostrap` option.
+
+To verify all branches specified for validation, use the `--all` flag:
+
+----
+$ bark verify --all
+----
+
+=== Protect a branch
+To protect a branch and instruct GitBark how to validate a specific branch, use the command:
+
+----
+$ bark protect
+----
+
+Executing this command adds the current branch to `bark_rules.yaml` instructing GitBark to validate it during the verification process. It will also ask if you want to enforce any Ref Rules.
+
+When performing this operation, GitBark will also prompt you to specify a bootstrap commit to use for validating this branch.
+
+
+=== Add Commit Rules Interactively
+To interactively add commit rules for the current branch use the command:
+
+----
+$ bark add-rules
+----
+
+=== Add Bark Modules Interactively
+To interactively add bark modules use the command:
+
+----
+$ bark add-modules
+----
