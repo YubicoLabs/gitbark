@@ -54,7 +54,7 @@ def _validate_rules(commit: Commit, cache: Cache) -> None:
             "all",
             commit,
             cache,
-            [_get_commit_rule(v, cache) for v in validators],
+            list({_get_commit_rule(v, cache) for v in validators}),
         )
     else:
         rule = _get_commit_rule(validators.pop(), cache)
