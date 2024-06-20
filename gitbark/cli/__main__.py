@@ -46,6 +46,7 @@ from .util import (
 
 import click
 import logging
+import subprocess
 import sys
 import os
 
@@ -327,6 +328,9 @@ def main():
         if isinstance(e, CliFail):
             status = e.status
             msg = e.args[0]
+        elif isinstance(e, subprocess.CalledProcessError):
+            status = e.returncode
+            msg = e.stderr.strip()
         else:
             msg = "An unexpected error occured."
             formatter.show_trace = True

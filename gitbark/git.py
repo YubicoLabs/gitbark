@@ -15,7 +15,7 @@
 from .objects import RuleData
 from .util import cmd
 
-from pygit2 import Commit as _Commit, Tree, Repository as _Repository, Tag as _Tag
+from pygit2 import Commit as _Commit, Tree, Repository as _Repository, Tag as _Tag, Blob
 from typing import Union, Tuple, Optional
 import yaml
 import re
@@ -150,14 +150,19 @@ class Commit:
         split_patterns = [p.split("/") for p in patterns]
         return _glob_files(tree, split_patterns, root)
 
-    def read_file(self, filename: str) -> bytes:
-        """Read the file content of a file in the commit."""
+    def _get_file(self, filename: str) -> Blob:
         try:
-            return self.repo._object.revparse_single(
-                f"{self.hash.hex()}:{filename}"
-            ).data
+            return self.repo._object.revparse_single(f"{self.hash.hex()}:{filename}")
         except KeyError:
             raise FileNotFoundError(f"'{filename}' does not exist in commit")
+
+    def read_file(self, filename: str) -> bytes:
+        """Read the file content of a file in the commit."""
+        return self._get_file(filename).data
+
+    def get_file_blob_id(self, filename: str) -> str:
+        """Get the blob ID of a file in the commit."""
+        return self._get_file(filename).id
 
     def get_files_modified(self, other: "Commit") -> set[str]:
         """Get a list of files modified between two commits."""

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .git import Commit
+from .git import Commit, COMMIT_RULES
 from .objects import RuleData
 from .project import Cache
 
@@ -55,6 +55,16 @@ class _Rule(ABC):
 
 
 class CommitRule(_Rule):
+    def __eq__(self, other):
+        return isinstance(other, CommitRule) and self.id == other.id
+
+    def __hash__(self):
+        return hash(self.id)
+
+    @property
+    def id(self) -> str:
+        return self.validator.get_file_blob_id(COMMIT_RULES)
+
     @abstractmethod
     def validate(self, commit: Commit) -> None:
         raise RuleViolation(f"{self}.validate is not defined")
