@@ -46,6 +46,7 @@ from .util import (
 
 import click
 import logging
+import subprocess
 import sys
 import os
 
@@ -61,6 +62,7 @@ def ensure_bootstrap_verified(project: Project) -> None:
                 "WARNING! The previously trusted bootstrap commit has CHANGED!"
             )
     else:
+        subprocess.run(["git", "show", "--stat", root_hash])
         click.echo(
             f"The bootstrap commit ({root_hash}) of the bark_rules "
             "branch has not been verified!"

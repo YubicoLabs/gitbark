@@ -32,6 +32,7 @@ from typing import Optional
 
 import click
 import os
+import subprocess
 import yaml
 
 ACTIVE_BRANCH = "active_branch"
@@ -237,6 +238,7 @@ def add_branches_interactive(project: Project, branch: str) -> None:
     click.echo(f"Configure how the '{branch}' branch should be validated!\n")
 
     bootstrap = project.repo.resolve(branch)[0].hash.hex()
+    subprocess.run(["git", "show", "--stat", bootstrap])
     if not click.confirm(
         f"Do you want to verify the '{branch}' branch using "
         f"commit {bootstrap} as bootstrap?"
